@@ -31,7 +31,7 @@ public class MassasmerPreLaunch implements PreLaunchEntrypoint {
                 ((FabricLoaderImpl) FabricLoader.getInstance()).getGameProvider();
 
         try {
-            Field transformerField = MinecraftGameProvider.class.getDeclaredField("transforme");
+            Field transformerField = MinecraftGameProvider.class.getDeclaredField("transformer");
 
             transformerField.setAccessible(true);
             transformerField.set(provider, new MassASMTransformer());
