@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "id": "massasmer",
+  "version": "${version}",
+  "name": "MassAsmer",
+  "description": "",
+  "authors": [],
+  "contact": {},
+  "license": "MIT",
+  "icon": "assets/massasmer/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "fabric-datagen": [
+      "de.zonlykroks.massasmer.client.MassasmerDataGenerator"
+    ],
+    "client": [
+      "de.zonlykroks.massasmer.client.MassasmerClient"
+    ],
+    "main": [
+      "de.zonlykroks.massasmer.Massasmer"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=${loader_version}",
+    "minecraft": "${minecraft_version}"
+  }
+}
