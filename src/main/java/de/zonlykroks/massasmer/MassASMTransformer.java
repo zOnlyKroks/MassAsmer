@@ -168,8 +168,12 @@ public class MassASMTransformer extends GameTransformer {
     public static void register(String name,
                                 Predicate<String> filter,
                                 ClassTransformer transformer) {
-        if(MassasmerPreLaunch.hasFailedToAttach()) {
-            LOGGER.error("MassASMTransformer: Failed to attach, cowardly refusing to register transformer!");
+        if (MassasmerPreLaunch.isHasFailedToAttach()) {
+            LOGGER.error("MassASMTransformer: Failed to attach; refusing to register transformer");
+            return;
+        }
+        if (MassasmerPreLaunch.isRegistryFrozen()) {
+            LOGGER.error("MassASMTransformer: Registry frozen; refusing to register transformer");
             return;
         }
 

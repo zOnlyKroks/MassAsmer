@@ -3,12 +3,15 @@ package de.zonlykroks.massasmer;
 import de.zonlykroks.massasmer.config.MassAsmConfigManager;
 import de.zonlykroks.massasmer.util.LoggerWrapper;
 import de.zonlykroks.massasmer.util.UnrecoverableMassASMRuntimeError;
+import lombok.Getter;
 import net.fabricmc.loader.api.FabricLoader;
+import net.fabricmc.loader.api.MappingResolver;
 import net.fabricmc.loader.api.entrypoint.EntrypointContainer;
 import net.fabricmc.loader.api.entrypoint.PreLaunchEntrypoint;
 import net.fabricmc.loader.impl.FabricLoaderImpl;
 import net.fabricmc.loader.impl.game.minecraft.MinecraftGameProvider;
 import org.apache.logging.log4j.LogManager;
+import org.objectweb.asm.Type;
 
 import java.lang.reflect.Field;
 
@@ -18,7 +21,12 @@ public class MassasmerPreLaunch implements PreLaunchEntrypoint {
     public static final MassAsmConfigManager configManager = new MassAsmConfigManager();
     public static final LoggerWrapper LOGGER = new LoggerWrapper(LogManager.getLogger("Massasmer-Prelaunch"), MassasmerPreLaunch.configManager.isLogEnabled());
 
+    @Getter
     private static boolean hasFailedToAttach = false;
+
+    //If you touch this, I will cry :c
+    @Getter
+    private static boolean registryFrozen = true;
 
     @Override
     public void onPreLaunch() {
@@ -29,26 +37,24 @@ public class MassasmerPreLaunch implements PreLaunchEntrypoint {
 
         try {
             Field transformerField = MinecraftGameProvider.class.getDeclaredField("transformer");
-
             transformerField.setAccessible(true);
             transformerField.set(provider, new MassASMTransformer());
         } catch (NoSuchFieldException | IllegalAccessException e) {
-            if(!configManager.isAllowAttachNonFailHard()) {
+            if (!configManager.isAllowAttachNonFailHard()) {
                 throw new UnrecoverableMassASMRuntimeError("Cannot set custom game provider transformer, failing!", e);
             } else {
-                LOGGER.error("Cannot set custom game provider transformer, failing non-hard as config allows this! (If this is intentional, get help please)", e);
+                LOGGER.error("Cannot set custom game provider transformer, non-hard failure allowed by config", e);
             }
             hasFailedToAttach = true;
         }
 
         LOGGER.info("MassASM pre-launch process completed, calling entrypoints...");
         callApiRegistrationPoints();
-        LOGGER.info("MassASM pre-launch process completed, entrypoints called.");
-        LOGGER.info("Be aware that every transform that now happens, can (and likely will if done incorrectly) implode your whole jvm!");
-        LOGGER.info("I took the courtesy to log any classes that register transformers in a supported way. If they dont use my entrypoint, well shit. More log combing for you");
+        LOGGER.info("MassASM pre-launch process finished. Watch your JVM—it can still implode if transforms go wrong!");
     }
 
     private void callApiRegistrationPoints() {
+        registryFrozen = false;
         FabricLoader.getInstance()
                 .getEntrypointContainers("mass-asm", Runnable.class)
                 .stream()
@@ -57,10 +63,6 @@ public class MassasmerPreLaunch implements PreLaunchEntrypoint {
                     LOGGER.info("Registering Entrypoint {}", runnable.getClass().getName());
                     runnable.run();
                 });
-
-    }
-
-    public static boolean hasFailedToAttach() {
-        return hasFailedToAttach;
+        registryFrozen = true;
     }
 }
