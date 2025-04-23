@@ -2,6 +2,8 @@
 
 A lightweight Fabric-based API for registering on-the-fly ASM bytecode transformers across all game classes. MassASM extends Fabric's `GameTransformer` to apply custom transformations *after* the Fabric Minecraft patches.
 
+[![](https://jitpack.io/v/zOnlyKroks/MassAsmer.svg)](https://jitpack.io/#zOnlyKroks/MassAsmer)
+
 ---
 
 ## Table of Contents
