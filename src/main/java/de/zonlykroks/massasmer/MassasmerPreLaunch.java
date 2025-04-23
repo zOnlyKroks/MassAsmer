@@ -1,6 +1,7 @@
 package de.zonlykroks.massasmer;
 
 import de.zonlykroks.massasmer.config.MassAsmConfigManager;
+import de.zonlykroks.massasmer.util.LoggerWrapper;
 import de.zonlykroks.massasmer.util.UnrecoverableMassASMRuntimeError;
 import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.loader.api.entrypoint.EntrypointContainer;
@@ -8,18 +9,14 @@ import net.fabricmc.loader.api.entrypoint.PreLaunchEntrypoint;
 import net.fabricmc.loader.impl.FabricLoaderImpl;
 import net.fabricmc.loader.impl.game.minecraft.MinecraftGameProvider;
 import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.objectweb.asm.ClassVisitor;
-import org.objectweb.asm.MethodVisitor;
-import org.objectweb.asm.Opcodes;
-import org.objectweb.asm.commons.AdviceAdapter;
 
 import java.lang.reflect.Field;
 
 public class MassasmerPreLaunch implements PreLaunchEntrypoint {
 
-    public static final Logger LOGGER = LogManager.getLogger("Massasmer-Prelaunch");
-    private final MassAsmConfigManager configManager = new MassAsmConfigManager();
+    //Keep this dang thing in order
+    public static final MassAsmConfigManager configManager = new MassAsmConfigManager();
+    public static final LoggerWrapper LOGGER = new LoggerWrapper(LogManager.getLogger("Massasmer-Prelaunch"), MassasmerPreLaunch.configManager.isLogEnabled());
 
     private static boolean hasFailedToAttach = false;
 
@@ -44,18 +41,23 @@ public class MassasmerPreLaunch implements PreLaunchEntrypoint {
             hasFailedToAttach = true;
         }
 
+        LOGGER.info("MassASM pre-launch process completed, calling entrypoints...");
         callApiRegistrationPoints();
+        LOGGER.info("MassASM pre-launch process completed, entrypoints called.");
+        LOGGER.info("Be aware that every transform that now happens, can (and likely will if done incorrectly) implode your whole jvm!");
+        LOGGER.info("I took the courtesy to log any classes that register transformers in a supported way. If they dont use my entrypoint, well shit. More log combing for you");
     }
 
     private void callApiRegistrationPoints() {
         FabricLoader.getInstance()
-                .getEntrypointContainers(
-                        "mass-asm",
-                        Runnable.class
-                )
+                .getEntrypointContainers("mass-asm", Runnable.class)
                 .stream()
                 .map(EntrypointContainer::getEntrypoint)
-                .forEach(Runnable::run);
+                .forEach(runnable -> {
+                    LOGGER.info("Registering Entrypoint {}", runnable.getClass().getName());
+                    runnable.run();
+                });
+
     }
 
     public static boolean hasFailedToAttach() {

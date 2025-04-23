@@ -12,7 +12,8 @@ import java.util.Properties;
 
 public class MassAsmConfigManager {
 
-    private final String KEY = "allow-attach-non-fail-hard";
+    private final String KEY_ATTACH = "allow-attach-non-fail-hard";
+    private final String KEY_LOG = "enable-log";
     private final Path CONFIG_FILE = FabricLoader.getInstance()
             .getConfigDir()
             .resolve("massasm.properties");
@@ -27,10 +28,11 @@ public class MassAsmConfigManager {
             try (InputStream is = Files.newInputStream(CONFIG_FILE)) {
                 PROPS.load(is);
             } catch (IOException e) {
-                System.err.println("[MassASM] Failed to load config: " + e.getMessage());
+                MassasmerPreLaunch.LOGGER.error("[MassASM] Failed to load config {}", e.getMessage());
             }
         } else {
-            PROPS.setProperty(KEY, Boolean.toString(false));
+            PROPS.setProperty(KEY_ATTACH, Boolean.toString(false));
+            PROPS.setProperty(KEY_LOG, Boolean.toString(true));
             save();
         }
     }
@@ -39,7 +41,7 @@ public class MassAsmConfigManager {
         try (OutputStream os = Files.newOutputStream(CONFIG_FILE)) {
             PROPS.store(os, "MassASM Configuration");
         } catch (IOException e) {
-            MassasmerPreLaunch.LOGGER.error("[MassASM] Failed to save config: " + e.getMessage());
+            MassasmerPreLaunch.LOGGER.error("[MassASM] Failed to save config: {}", e.getMessage());
         }
     }
 
@@ -48,6 +50,14 @@ public class MassAsmConfigManager {
      * @return true if allowed, false otherwise
      */
     public boolean isAllowAttachNonFailHard() {
-        return Boolean.parseBoolean(PROPS.getProperty(KEY, "false"));
+        return Boolean.parseBoolean(PROPS.getProperty(KEY_ATTACH, "false"));
+    }
+
+    /**
+     * Check if we shall not log.
+     * @return true if allowed, false otherwise
+     */
+    public boolean isLogEnabled() {
+        return Boolean.parseBoolean(PROPS.getProperty(KEY_LOG, "true"));
     }
 }

@@ -1,12 +1,12 @@
 package de.zonlykroks.massasmer;
 
+import de.zonlykroks.massasmer.util.LoggerWrapper;
 import net.fabricmc.api.ModInitializer;
 import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 public class Massasmer implements ModInitializer {
 
-    private static final Logger LOGGER = LogManager.getLogger("Massasmer");
+    private static final LoggerWrapper LOGGER = new LoggerWrapper(LogManager.getLogger("Massasmer"), MassasmerPreLaunch.configManager.isLogEnabled());
 
     @Override
     public void onInitialize() {

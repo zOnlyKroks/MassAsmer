@@ -1,5 +1,6 @@
 package de.zonlykroks.massasmer;
 
+import de.zonlykroks.massasmer.util.LoggerWrapper;
 import de.zonlykroks.massasmer.util.UnrecoverableMassASMRuntimeError;
 import lombok.experimental.Delegate;
 import net.fabricmc.loader.impl.game.patch.GamePatch;
@@ -20,15 +21,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
-import java.util.logging.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
-/**
- * Extended GameTransformer with Mass ASM capabilities.
- * Uses Lombok's @Delegate to delegate standard operations to the parent class.
- * Applies transformations to all classes, not just patched ones.
- */
 public class MassASMTransformer extends GameTransformer {
-    private static final Logger LOGGER = Logger.getLogger("MassASMTransformer");
+    private static final LoggerWrapper LOGGER = new LoggerWrapper(LogManager.getLogger("MassASMTransformer"), MassasmerPreLaunch.configManager.isLogEnabled());
 
     // List of named transformer entries
     private static final List<NamedTransformerEntry> TRANSFORMERS = new ArrayList<>();
@@ -172,15 +169,14 @@ public class MassASMTransformer extends GameTransformer {
                                 Predicate<String> filter,
                                 ClassTransformer transformer) {
         if(MassasmerPreLaunch.hasFailedToAttach()) {
-            LOGGER.warning("MassASMTransformer: Failed to attach, cowardly refusing to register transformer!");
+            LOGGER.error("MassASMTransformer: Failed to attach, cowardly refusing to register transformer!");
             return;
         }
 
         if (name == null || name.isBlank()) {
             throw new IllegalArgumentException("Transformer name must be non-empty");
         }
-        LOGGER.warning("MassASMTransformer: Registering transformer '"
-                + name + "' for " + filter);
+        LOGGER.info("MassASMTransformer: Registering transformer '{}' for {}", name, filter);
         TRANSFORMERS.add(new NamedTransformerEntry(name, filter, transformer));
     }
 
