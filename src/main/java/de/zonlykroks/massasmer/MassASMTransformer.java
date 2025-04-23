@@ -171,6 +171,11 @@ public class MassASMTransformer extends GameTransformer {
     public static void register(String name,
                                 Predicate<String> filter,
                                 ClassTransformer transformer) {
+        if(MassasmerPreLaunch.hasFailedToAttach()) {
+            LOGGER.warning("MassASMTransformer: Failed to attach, cowardly refusing to register transformer!");
+            return;
+        }
+
         if (name == null || name.isBlank()) {
             throw new IllegalArgumentException("Transformer name must be non-empty");
         }

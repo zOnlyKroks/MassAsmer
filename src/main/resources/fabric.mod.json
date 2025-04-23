@@ -20,9 +20,6 @@
       "de.zonlykroks.massasmer.InternalMassAsmEntrypoint"
     ]
   },
-  "mixins": [
-    "massasm.mixins.json"
-  ],
   "depends": {
     "fabricloader": ">=${loader_version}",
     "minecraft": "${minecraft_version}"
