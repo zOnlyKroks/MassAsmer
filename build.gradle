@@ -1,5 +1,3 @@
-import net.fabricmc.loom.task.prod.ClientProductionRunTask
-
 plugins {
     id 'fabric-loom' version '1.11.0-alpha.12'
     id 'maven-publish'
@@ -37,8 +35,6 @@ dependencies {
     testAnnotationProcessor("org.projectlombok:lombok:1.18.38")
 }
 
-tasks.register("prodClient", ClientProductionRunTask) {}
-
 processResources {
     inputs.property "version", project.version
     inputs.property "minecraft_version", project.minecraft_version
@@ -66,5 +62,30 @@ java {
 jar {
     from("LICENSE") {
         rename { "${it}_${project.archivesBaseName}" }
+    }
+}
+
+tasks.register('jitpackRelease') {
+    group = 'release'
+    description = 'Tags the current commit as v<version> and pushes it to origin for JitPack.'
+
+    doLast {
+        // Build the tag name from project.version
+        def tagName = "v${project.version}"
+        println "🔖 Tagging current commit with '${tagName}'…"
+
+        // Create the Git tag
+        exec {
+            commandLine 'git', 'tag', tagName
+        }
+
+        println "🚀 Pushing tag '${tagName}' to origin…"
+        // Push only that tag
+        exec {
+            commandLine 'git', 'push', 'origin', tagName
+        }
+
+        println "✅ Done! Your JitPack coordinates will be:\n" +
+                "   https://jitpack.io/com/github/<YourGitHubUser>/<YourRepo>/${tagName}/"
     }
 }
