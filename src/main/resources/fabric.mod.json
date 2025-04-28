@@ -13,9 +13,6 @@
     "preLaunch": [
       "de.zonlykroks.massasmer.MassasmerPreLaunch"
     ],
-    "main": [
-      "de.zonlykroks.massasmer.Massasmer"
-    ],
     "mass-asm": [
       "de.zonlykroks.massasmer.InternalMassAsmEntrypoint"
     ]

@@ -215,7 +215,6 @@ public class MassASMTransformer extends GameTransformer {
      * Register a raw bytecode transformer with a class filter and name
      */
     public static void register(String name, TransformerFilter filter, ClassTransformer transformer) {
-        // Existing checks...
         LOGGER.info("Registering transformer '{}' for {}", name, filter);
         final NamedTransformerEntry entry = new NamedTransformerEntry(name, filter, transformer);
 
