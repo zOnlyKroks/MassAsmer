@@ -125,3 +125,26 @@ Use JitPack URL:
 """
     }
 }
+
+publishing {
+    publications {
+        create("mavenJava", MavenPublication) {
+            artifactId = project.archives_base_name
+            from components.java
+
+            // Include the remapped JAR
+            artifact(remapJar) {
+                builtBy remapJar
+            }
+
+            // Include sources JAR if available
+            artifact(remapSourcesJar) {
+                builtBy remapSourcesJar
+            }
+        }
+    }
+
+    repositories {
+        // Empty for JitPack
+    }
+}
