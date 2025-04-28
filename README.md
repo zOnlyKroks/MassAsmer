@@ -1,6 +1,15 @@
-**MassASM API**
+Got it — I'll prepare everything super cleanly so you can **copy-paste** it directly.
 
-A lightweight Fabric-based API for registering on-the-fly ASM bytecode transformers across all game classes. MassASM extends Fabric's `GameTransformer` to apply custom transformations *after* the Fabric Minecraft patches.
+I'll also **explain the `NamePatternFilter` parameters** clearly.
+
+Here’s the **updated and complete README**, clean and copyable:
+
+---
+
+# MassASM API
+
+A lightweight Fabric-based API for registering on-the-fly ASM bytecode transformers across all game classes.  
+MassASM extends Fabric's `GameTransformer`, applying custom transformations *after* Fabric's Minecraft patches but *before* Mixins — important for compatibility reasons.
 
 [![](https://jitpack.io/v/zOnlyKroks/MassAsmer.svg)](https://jitpack.io/#zOnlyKroks/MassAsmer)
 
@@ -11,11 +20,10 @@ A lightweight Fabric-based API for registering on-the-fly ASM bytecode transform
 1. [Getting Started](#getting-started)
 2. [Key Components](#key-components)
 3. [Registering Transformers](#registering-transformers)
-    - [Raw Bytecode Transformers](#raw-bytecode-transformers)
-    - [ClassNode Transformers](#classnode-transformers)
-    - [Visitor-Based Transformers](#visitor-based-transformers)
+   - [Raw Bytecode Transformers](#raw-bytecode-transformers)
+   - [ClassNode Transformers](#classnode-transformers)
+   - [Visitor-Based Transformers](#visitor-based-transformers)
 4. [Entrypoints](#entrypoints)
-    - [Custom Registration Entrypoint](#custom-registration-entrypoint)
 5. [Examples](#examples)
 6. [Error Handling](#error-handling)
 7. [License](#license)
@@ -24,34 +32,44 @@ A lightweight Fabric-based API for registering on-the-fly ASM bytecode transform
 
 ## Getting Started
 
-1. **Include** the `massasmer` package in your Fabric mod dependencies.
-2. **Implement** a PreLaunchEntrypoint to inject the `MassASMTransformer` into Fabric’s game pipeline.
-3. **Register** your transformers by providing a unique name, a class-filter predicate, and a transformer implementation.
+1. **Include** the `massasmer` library as a dependency in your Fabric mod.
+2. **Implement** a `PreLaunchEntrypoint` that injects MassASM into the game's transformer pipeline.
+3. **Register** your transformers by providing:
+   - a **unique name**,
+   - a **TransformerFilter**,
+   - a **transformer implementation**.
 
 ---
 
 ## Key Components
 
-| Class                       | Description |
-|-----------------------------|-------------|
-| `MassASMTransformer`        | Extends Fabric's `GameTransformer`; manages a list of registered transformers and applies them globally. |
-| `InternalMassAsmEntrypoint` | Example `Runnable` entrypoint that registers a simple visitor-based transformer. |
-| `MassasmerPreLaunch`        | Implements Fabric’s `PreLaunchEntrypoint`; replaces the game provider's transformer with `MassASMTransformer`. |
+| Class                        | Description |
+|-------------------------------|-------------|
+| `MassASMTransformer`          | Extends Fabric's `GameTransformer`; manages and applies all registered MassASM transformers. |
+| `TransformerFilter`           | Interface for matching class names (e.g., `NamePatternFilter`, `CompositeFilter`, `EmptyFilter`). |
+| `MassasmerPreLaunch`          | Fabric `PreLaunchEntrypoint` to inject `MassASMTransformer` during boot. |
+| `LoggerWrapper`               | Lightweight logger wrapper used internally and in injected transformers. |
+| `InternalMassAsmEntrypoint`    | Example registration for a simple visitor-based transformer. |
 
 ---
 
 ## Registering Transformers
 
-MassASM provides three registration methods, each accepting a **name**, a **filter predicate**, and a **transformer implementation**.
+You must provide:
+- a **name** (string),
+- a **`TransformerFilter`** (not a simple predicate),
+- a **transformer**.
+
+There are three ways to register:
 
 ### Raw Bytecode Transformers
 
 ```java
 MassASMTransformer.register(
     "unique-name",
-    className -> className.startsWith("com.example"),
+    new NamePatternFilter("com.example", true, false, false, false),
     (className, classBytes) -> {
-        // return a new VisitorProvider
+        // return a VisitorProvider
     }
 );
 ```
@@ -61,9 +79,10 @@ MassASMTransformer.register(
 ```java
 MassASMTransformer.registerNodeTransformer(
     "node-transformer",
-    className -> className.equals("net.minecraft.client.Minecraft"),
+    new NamePatternFilter("net.minecraft.client.Minecraft", true, false, false, false),
     (className, classNode) -> {
-        // return a new ClassNodeTransformer
+        // transform the ClassNode here
+        return classNode;
     }
 );
 ```
@@ -73,8 +92,8 @@ MassASMTransformer.registerNodeTransformer(
 ```java
 MassASMTransformer.registerVisitor(
     "visitor-transformer",
-    className -> className.equals("net.minecraft.client.Minecraft"),
-    (className, writer) -> new ClassVisitor(Opcodes.ASM9, writer) {
+    new NamePatternFilter("net.minecraft.client.Minecraft", true, false, false, false),
+    (className, nextVisitor) -> new ClassVisitor(Opcodes.ASM9, nextVisitor) {
         @Override
         public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
             MethodVisitor mv = super.visitMethod(access, name, descriptor, signature, exceptions);
@@ -82,7 +101,7 @@ MassASMTransformer.registerVisitor(
                 return new AdviceAdapter(api, mv, access, name, descriptor) {
                     @Override
                     protected void onMethodEnter() {
-                        // injection code here
+                        // Inject bytecode at method entry
                     }
                 };
             }
@@ -93,22 +112,25 @@ MassASMTransformer.registerVisitor(
 ```
 
 ---
+
 ## Entrypoints
 
-### Custom Registration Entrypoint
+### MassASM Entrypoint (`mass-asm`)
 
-Any class listed under the `mass-asm` entrypoint in your `fabric.mod.json` that implements `Runnable` will be executed during pre-launch. Use this to register your transformers:
+You must implement a `Runnable` class to register your transformers, and define it in `fabric.mod.json`.
+
+Example registration class:
 
 ```java
 public class InternalMassAsmEntrypoint implements Runnable {
     @Override
     public void run() {
-        // register your transformers here
+        // Register transformers here
     }
 }
 ```
 
-Include in `fabric.mod.json`:
+And in `fabric.mod.json`:
 
 ```json
 {
@@ -124,20 +146,68 @@ Include in `fabric.mod.json`:
 
 ## Examples
 
-See `InternalMassAsmEntrypoint` for a simple visitor that logs when `net.minecraft.client.Minecraft` is constructed.
+The internal MassASM example (`InternalMassAsmEntrypoint`) demonstrates:
 
-The visitor implementation prints a startup message to `System.out` inside the Minecraft constructor.
+- Dynamically picking different target classes depending on environment (dev vs production).
+- Injecting a log message into the constructor of `Minecraft` using `AdviceAdapter`.
+
+**Example snippet:**
+
+```java
+MassASMTransformer.registerVisitor(
+    "massasm-internal-inject-init-stdout",
+    new NamePatternFilter(
+        FabricLauncherBase.getLauncher().isDevelopment()
+            ? "net.minecraft.client.Minecraft"
+            : "net.minecraft.client.main.Main$2",
+        true, false, false, false
+    ),
+    (className, nextVisitor) -> new CreateTitlePrintTransformer(Opcodes.ASM9, nextVisitor, className)
+);
+```
+
+This injects the following on constructor entry:
+```
+[MassASM] net.minecraft.client.Minecraft <init> called, this means our transformer is working, shenanigans now probably ensue. If something fails, look at the weird mod using this API!
+```
+
+---
+
+## About `NamePatternFilter`
+
+The `NamePatternFilter` is used to match class names for transformations.
+
+Constructor:
+
+```java
+public NamePatternFilter(String pattern, boolean exactContentMatch, boolean startsWith, boolean endsWith, boolean contains)
+```
+
+| Parameter | Meaning |
+|:---|:---|
+| `pattern` | The string pattern to match against the class name. |
+| `exactContentMatch` | If `true`, the class name must match exactly (`className.equals(pattern)`). |
+| `startsWith` | If `true`, the class name must start with the pattern (`className.startsWith(pattern)`). |
+| `endsWith` | If `true`, the class name must end with the pattern (`className.endsWith(pattern)`). |
+| `contains` | If `true`, the class name must simply contain the pattern (`className.contains(pattern)`). |
+
+The priority order for matching is:
+1. Exact match (if `exactContentMatch` is `true`).
+2. `startsWith`, `endsWith`, `contains` — in this order.
+3. If none are true, fallback to exact match.
 
 ---
 
 ## Error Handling
 
-- If reflection on the game provider fails, a stack trace will be printed.
-- During transformation, any unchecked exception will be wrapped in `UnrecoverableMassASMRuntimeError`.
-- If we fail, we fail HARD. We will not attempt to recover or continue the game.
+- If MassASM fails to inject due to Fabric internal changes, a stack trace will be printed.
+- If any transformer throws during bytecode transformation, an `UnrecoverableMassASMRuntimeError` is thrown.
+- **MassASM does not attempt recovery** — fatal transformer errors crash the game.
+
 ---
 
 ## License
 
-This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for full license text.
 
+---
