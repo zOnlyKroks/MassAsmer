@@ -3,6 +3,7 @@ import net.fabricmc.loom.task.prod.ClientProductionRunTask
 plugins {
     id 'fabric-loom' version '1.11.0-alpha.12'
     id 'maven-publish'
+    id 'com.github.johnrengelman.shadow' version '8.1.1'
 }
 
 version = project.mod_version
@@ -14,6 +15,14 @@ base {
 
 repositories {
     mavenCentral()
+    maven {
+        url = "https://jitpack.io"
+    }
+}
+
+configurations {
+    shade
+    implementation.extendsFrom(shade)
 }
 
 dependencies {

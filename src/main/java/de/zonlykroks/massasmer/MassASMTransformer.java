@@ -1,5 +1,6 @@
 package de.zonlykroks.massasmer;
 
+import de.zonlykroks.massasmer.filter.TransformerFilter;
 import de.zonlykroks.massasmer.util.LoggerWrapper;
 import de.zonlykroks.massasmer.util.UnrecoverableMassASMRuntimeError;
 import lombok.experimental.Delegate;
@@ -16,10 +17,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Predicate;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -29,6 +27,12 @@ public class MassASMTransformer extends GameTransformer {
 
     // List of named transformer entries
     private static final List<NamedTransformerEntry> TRANSFORMERS = new ArrayList<>();
+
+    private static final Map<String, List<NamedTransformerEntry>> EXACT_TRANSFORMERS = new HashMap<>();
+    private static final Map<String, List<NamedTransformerEntry>> PREFIX_TRANSFORMERS = new HashMap<>();
+    private static final Map<String, List<NamedTransformerEntry>> SUFFIX_TRANSFORMERS = new HashMap<>();
+    private static final List<NamedTransformerEntry> CONTAINS_TRANSFORMERS = new ArrayList<>();
+    private static final List<NamedTransformerEntry> OTHER_TRANSFORMERS = new ArrayList<>();
 
     private final Map<String, byte[]> additionalTransformedClasses = new HashMap<>();
     private boolean massTransformersApplied = false;
@@ -166,7 +170,7 @@ public class MassASMTransformer extends GameTransformer {
      * Register a raw bytecode transformer with a class filter and name
      */
     public static void register(String name,
-                                Predicate<String> filter,
+                                TransformerFilter filter,
                                 ClassTransformer transformer) {
         if (MassasmerPreLaunch.isHasFailedToAttach()) {
             LOGGER.error("MassASMTransformer: Failed to attach; refusing to register transformer");
@@ -188,7 +192,7 @@ public class MassASMTransformer extends GameTransformer {
      * Register a ClassNode based transformer with a class filter and name
      */
     public static void registerNodeTransformer(String name,
-                                               Predicate<String> filter,
+                                               TransformerFilter filter,
                                                ClassNodeTransformer transformer) {
         register(name, filter, (className, classBytes) -> {
             ClassReader reader = new ClassReader(classBytes);
@@ -210,7 +214,7 @@ public class MassASMTransformer extends GameTransformer {
      * Register a visitor-based transformer with a class filter and name
      */
     public static void registerVisitor(String name,
-                                       Predicate<String> filter,
+                                       TransformerFilter filter,
                                        VisitorProvider visitorProvider) {
         register(name, filter, (className, classBytes) -> {
             ClassReader reader = new ClassReader(classBytes);
@@ -222,10 +226,9 @@ public class MassASMTransformer extends GameTransformer {
     }
 
     // Internal named entry
-    private record NamedTransformerEntry(String name, Predicate<String> filter, ClassTransformer transformer) {
-
+    private record NamedTransformerEntry(String name, TransformerFilter filter, ClassTransformer transformer) {
         boolean matches(String className) {
-            return filter.test(className);
+            return filter.matches(className);
         }
 
         byte[] transform(String className, byte[] bytes) {

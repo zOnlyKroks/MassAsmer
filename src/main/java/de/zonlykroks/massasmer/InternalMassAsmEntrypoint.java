@@ -1,11 +1,20 @@
 package de.zonlykroks.massasmer;
 
+import de.zonlykroks.massasmer.filter.NamePatternFilter;
+import de.zonlykroks.massasmer.util.LoggerWrapper;
+import net.fabricmc.loader.impl.launch.FabricLauncher;
+import net.fabricmc.loader.impl.launch.FabricLauncherBase;
+import org.apache.logging.log4j.LogManager;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.commons.AdviceAdapter;
 
 public class InternalMassAsmEntrypoint implements Runnable {
+
+    @SuppressWarnings("unused")
+    public static final LoggerWrapper INTERNAL_TEST_LOGGER = new LoggerWrapper(LogManager.getLogger("Massasmer-test-logger"), true);
+
     @Override
     public void run() {
         registerInternalTransformers();
@@ -14,7 +23,7 @@ public class InternalMassAsmEntrypoint implements Runnable {
     private void registerInternalTransformers() {
         MassASMTransformer.registerVisitor(
                 "massasm-internal-inject-init-stdout",
-                className -> className.equals("net.minecraft.client.Minecraft"),
+                new NamePatternFilter(FabricLauncherBase.getLauncher().isDevelopment() ? "net.minecraft.client.Minecraft" : "net.minecraft.client.main.Main", true, false,false,false),
                 (className, nextVisitor) -> new CreateTitlePrintTransformer(Opcodes.ASM9, nextVisitor, className)
         );
     }
@@ -39,16 +48,22 @@ public class InternalMassAsmEntrypoint implements Runnable {
                 return new AdviceAdapter(api, mv, access, name, descriptor) {
                     @Override
                     protected void onMethodEnter() {
-                        // Inject at top of <init>:
-                        // System.out.println("[MassASM] net.minecraft.client.Minecraft ctor entered");
+                        // Injecting the logger call into the constructor
+                        // INTERNAL_TEST_LOGGER.info("[MassASM] <init> called for " + className);
+
+                        // Load the logger
                         visitFieldInsn(Opcodes.GETSTATIC,
-                                "java/lang/System",
-                                "out",
-                                "Ljava/io/PrintStream;");
+                                "de/zonlykroks/massasmer/InternalMassAsmEntrypoint",
+                                "INTERNAL_TEST_LOGGER",
+                                "Lde/zonlykroks/massasmer/util/LoggerWrapper;");
+
+                        // Load the log message
                         visitLdcInsn("[MassASM] " + className + " <init> called, this means our transformer is working, shenanigans now probably ensue. If something fails, look at the weird mod using this API!");
+
+                        // Call the logger's info() method
                         visitMethodInsn(Opcodes.INVOKEVIRTUAL,
-                                "java/io/PrintStream",
-                                "println",
+                                "de/zonlykroks/massasmer/util/LoggerWrapper",
+                                "info",
                                 "(Ljava/lang/String;)V",
                                 false);
                     }
