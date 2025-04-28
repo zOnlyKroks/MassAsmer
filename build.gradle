@@ -130,9 +130,8 @@ publishing {
     publications {
         create("mavenJava", MavenPublication) {
             artifactId = project.archives_base_name
-            from components.java
 
-            // Include the remapped JAR
+            // Only publish remapped jar
             artifact(remapJar) {
                 builtBy remapJar
             }
@@ -142,9 +141,5 @@ publishing {
                 builtBy remapSourcesJar
             }
         }
-    }
-
-    repositories {
-        // Empty for JitPack
     }
 }
