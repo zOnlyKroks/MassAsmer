@@ -1,7 +1,11 @@
+import org.ajoberstar.grgit.Grgit
+import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
+
 plugins {
     id 'fabric-loom' version '1.11.0-alpha.12'
     id 'maven-publish'
     id 'com.github.johnrengelman.shadow' version '8.1.1'
+    id 'org.ajoberstar.grgit' version '5.0.0'
 }
 
 version = project.mod_version
@@ -66,26 +70,58 @@ jar {
 }
 
 tasks.register('jitpackRelease') {
-    group = 'release'
-    description = 'Tags the current commit as v<version> and pushes it to origin for JitPack.'
+    group       = 'release'
+    description = 'Tag HEAD as v<version> and push it over HTTPS for JitPack.'
 
     doLast {
-        // Build the tag name from project.version
+        // 1) gather credentials
+        def gitUser = project.findProperty('git.username')
+                ?: System.getenv('GIT_USERNAME')
+                ?: System.getenv('GITHUB_ACTOR')
+        def gitToken = project.findProperty('git.token')
+                ?: System.getenv('GIT_TOKEN')
+                ?: System.getenv('GITHUB_TOKEN')
+        if (!gitUser || !gitToken) {
+            throw new GradleException(
+                    "Missing credentials: set GITHUB_ACTOR & GITHUB_TOKEN (or GIT_USERNAME & GIT_TOKEN)"
+            )
+        }
+
+        // 2) open repo and form tag name
+        def repo = Grgit.open(dir: project.rootDir)
         def tagName = "v${project.version}"
-        println "🔖 Tagging current commit with '${tagName}'…"
 
-        // Create the Git tag
-        exec {
-            commandLine 'git', 'tag', tagName
+        // Set credentials for this repository
+        System.setProperty('org.ajoberstar.grgit.auth.username', gitUser)
+        System.setProperty('org.ajoberstar.grgit.auth.password', gitToken)
+
+        // 3) delete remote tag if it exists
+        println "🗑 Deleting remote tag if exists…"
+        try {
+            repo.push(remote: 'origin', refsOrSpecs: [":refs/tags/${tagName}"])
+            println "✔ Remote tag deleted"
+        } catch (ignored) {
+            println "ℹ️ Remote tag did not exist or could not be deleted"
         }
 
-        println "🚀 Pushing tag '${tagName}' to origin…"
-        // Push only that tag
-        exec {
-            commandLine 'git', 'push', 'origin', tagName
+        // 4) delete local tag if it exists
+        if (repo.tag.list().any { it.name == tagName }) {
+            repo.tag.remove(names: [tagName])
+            println "✔ Local tag deleted"
         }
 
-        println "✅ Done! Your JitPack coordinates will be:\n" +
-                "   https://jitpack.io/com/github/<YourGitHubUser>/<YourRepo>/${tagName}/"
+        // 5) create the new tag
+        println "🔖 Creating new tag '${tagName}'…"
+        repo.tag.add(name: tagName, message: "Release ${tagName}")
+
+        // 6) push the new tag
+        println "🚀 Pushing '${tagName}' to origin…"
+        repo.push(remote: 'origin', refsOrSpecs: ["refs/tags/${tagName}"])
+
+        println """
+✅ Release complete!
+Use JitPack URL:
+  https://jitpack.io/com/github/zOnlyKroks/MassAsmer/${tagName}/
+"""
     }
 }
