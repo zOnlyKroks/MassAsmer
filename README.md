@@ -1,9 +1,3 @@
-Got it — I'll prepare everything super cleanly so you can **copy-paste** it directly.
-
-I'll also **explain the `NamePatternFilter` parameters** clearly.
-
-Here’s the **updated and complete README**, clean and copyable:
-
 ---
 
 # MassASM API
