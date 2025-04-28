@@ -1,13 +1,20 @@
 package de.zonlykroks.massasmer.filter;
 
+import lombok.Getter;
+
 import java.util.Objects;
 
 // Filter for string-based matching on class names using native string operations
 public class NamePatternFilter implements TransformerFilter {
+    @Getter
     private final String pattern;
+    @Getter
     private final boolean startsWith;
+    @Getter
     private final boolean endsWith;
+    @Getter
     private final boolean contains;
+    @Getter
     private final boolean exactContentMatch;
 
     // Constructor for simple pattern matching

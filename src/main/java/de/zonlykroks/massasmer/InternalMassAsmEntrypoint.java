@@ -23,7 +23,7 @@ public class InternalMassAsmEntrypoint implements Runnable {
     private void registerInternalTransformers() {
         MassASMTransformer.registerVisitor(
                 "massasm-internal-inject-init-stdout",
-                new NamePatternFilter(FabricLauncherBase.getLauncher().isDevelopment() ? "net.minecraft.client.Minecraft" : "net.minecraft.client.main.Main", true, false,false,false),
+                new NamePatternFilter(FabricLauncherBase.getLauncher().isDevelopment() ? "net.minecraft.client.Minecraft" : "net.minecraft.client.main.Main$2", true, false,false,false),
                 (className, nextVisitor) -> new CreateTitlePrintTransformer(Opcodes.ASM9, nextVisitor, className)
         );
     }

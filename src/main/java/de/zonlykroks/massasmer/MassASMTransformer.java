@@ -1,5 +1,6 @@
 package de.zonlykroks.massasmer;
 
+import de.zonlykroks.massasmer.filter.NamePatternFilter;
 import de.zonlykroks.massasmer.filter.TransformerFilter;
 import de.zonlykroks.massasmer.util.LoggerWrapper;
 import de.zonlykroks.massasmer.util.UnrecoverableMassASMRuntimeError;
@@ -24,9 +25,6 @@ import org.apache.logging.log4j.Logger;
 
 public class MassASMTransformer extends GameTransformer {
     private static final LoggerWrapper LOGGER = new LoggerWrapper(LogManager.getLogger("MassASMTransformer"), MassasmerPreLaunch.configManager.isLogEnabled());
-
-    // List of named transformer entries
-    private static final List<NamedTransformerEntry> TRANSFORMERS = new ArrayList<>();
 
     private static final Map<String, List<NamedTransformerEntry>> EXACT_TRANSFORMERS = new HashMap<>();
     private static final Map<String, List<NamedTransformerEntry>> PREFIX_TRANSFORMERS = new HashMap<>();
@@ -153,9 +151,56 @@ public class MassASMTransformer extends GameTransformer {
         byte[] result = classBytes;
         boolean modified = false;
 
-        for (NamedTransformerEntry entry : TRANSFORMERS) {
-            if (entry.matches(className)) {
+        // Check exact matches first
+        List<NamedTransformerEntry> exact = EXACT_TRANSFORMERS.get(className);
+        if (exact != null) {
+            for (NamedTransformerEntry entry : exact) {
                 byte[] transformed = entry.transform(className, result);
+                if (transformed != null) {
+                    result = transformed;
+                    modified = true;
+                }
+            }
+        }
+
+        // Check prefixes
+        for (Map.Entry<String, List<NamedTransformerEntry>> entry : PREFIX_TRANSFORMERS.entrySet()) {
+            if (className.startsWith(entry.getKey())) {
+                for (NamedTransformerEntry transformer : entry.getValue()) {
+                    byte[] transformed = transformer.transform(className, result);
+                    if (transformed != null) {
+                        result = transformed;
+                        modified = true;
+                    }
+                }
+            }
+        }
+
+        for(Map.Entry<String, List<NamedTransformerEntry>> entry : SUFFIX_TRANSFORMERS.entrySet()) {
+            if (className.endsWith(entry.getKey())) {
+                for (NamedTransformerEntry transformer : entry.getValue()) {
+                    byte[] transformed = transformer.transform(className, result);
+                    if (transformed != null) {
+                        result = transformed;
+                        modified = true;
+                    }
+                }
+            }
+        }
+
+        for(NamedTransformerEntry transformer : CONTAINS_TRANSFORMERS) {
+            if (transformer.matches(className)) {
+                byte[] transformed = transformer.transform(className, result);
+                if (transformed != null) {
+                    result = transformed;
+                    modified = true;
+                }
+            }
+        }
+
+        for(NamedTransformerEntry transformer : OTHER_TRANSFORMERS) {
+            if (transformer.matches(className)) {
+                byte[] transformed = transformer.transform(className, result);
                 if (transformed != null) {
                     result = transformed;
                     modified = true;
@@ -169,23 +214,27 @@ public class MassASMTransformer extends GameTransformer {
     /**
      * Register a raw bytecode transformer with a class filter and name
      */
-    public static void register(String name,
-                                TransformerFilter filter,
-                                ClassTransformer transformer) {
-        if (MassasmerPreLaunch.isHasFailedToAttach()) {
-            LOGGER.error("MassASMTransformer: Failed to attach; refusing to register transformer");
-            return;
-        }
-        if (MassasmerPreLaunch.isRegistryFrozen()) {
-            LOGGER.error("MassASMTransformer: Registry frozen; refusing to register transformer");
-            return;
-        }
+    public static void register(String name, TransformerFilter filter, ClassTransformer transformer) {
+        // Existing checks...
+        LOGGER.info("Registering transformer '{}' for {}", name, filter);
+        final NamedTransformerEntry entry = new NamedTransformerEntry(name, filter, transformer);
 
-        if (name == null || name.isBlank()) {
-            throw new IllegalArgumentException("Transformer name must be non-empty");
+        if (filter instanceof NamePatternFilter npFilter) {
+            String pattern = npFilter.getPattern();
+            if (npFilter.isExactContentMatch()) {
+                EXACT_TRANSFORMERS.computeIfAbsent(pattern, k -> new ArrayList<>()).add(entry);
+            } else if (npFilter.isStartsWith()) {
+                PREFIX_TRANSFORMERS.computeIfAbsent(pattern, k -> new ArrayList<>()).add(entry);
+            } else if (npFilter.isEndsWith()) {
+                SUFFIX_TRANSFORMERS.computeIfAbsent(pattern, k -> new ArrayList<>()).add(entry);
+            } else if (npFilter.isContains()) {
+                CONTAINS_TRANSFORMERS.add(entry);
+            }
+        } else {
+            LOGGER.warn("Transformer '{}' has no filter, it will be applied to all classes", name);
+
+            OTHER_TRANSFORMERS.add(entry);
         }
-        LOGGER.info("MassASMTransformer: Registering transformer '{}' for {}", name, filter);
-        TRANSFORMERS.add(new NamedTransformerEntry(name, filter, transformer));
     }
 
     /**
