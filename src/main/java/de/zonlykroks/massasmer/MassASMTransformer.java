@@ -1,5 +1,6 @@
 package de.zonlykroks.massasmer;
 
+import de.zonlykroks.massasmer.filter.Filters;
 import de.zonlykroks.massasmer.filter.impl.NamePatternFilter;
 import de.zonlykroks.massasmer.filter.api.TransformerFilter;
 import de.zonlykroks.massasmer.util.LoggerWrapper;
@@ -56,6 +57,10 @@ public class MassASMTransformer extends GameTransformer {
 
     @Override
     public byte[] transform(String className) {
+        if (!MassasmerPreLaunch.configManager.getTransformerExclusionFilter().matches(className)) {
+            return null;
+        }
+
         if (additionalTransformedClasses.containsKey(className)) {
             return additionalTransformedClasses.get(className);
         }

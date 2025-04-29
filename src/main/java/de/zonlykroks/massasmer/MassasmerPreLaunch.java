@@ -32,6 +32,8 @@ public class MassasmerPreLaunch implements PreLaunchEntrypoint {
     public void onPreLaunch() {
         LOGGER.info("Starting MassASM pre-launch process...");
 
+        LOGGER.info("Default transformer exclusions: {}", configManager.getExclusionsString());
+
         MinecraftGameProvider provider = (MinecraftGameProvider)
                 ((FabricLoaderImpl) FabricLoader.getInstance()).getGameProvider();
 
