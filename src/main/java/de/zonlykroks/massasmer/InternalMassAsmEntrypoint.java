@@ -1,8 +1,8 @@
 package de.zonlykroks.massasmer;
 
-import de.zonlykroks.massasmer.filter.NamePatternFilter;
+import de.zonlykroks.massasmer.filter.Filters;
+import de.zonlykroks.massasmer.filter.impl.NamePatternFilter;
 import de.zonlykroks.massasmer.util.LoggerWrapper;
-import net.fabricmc.loader.impl.launch.FabricLauncher;
 import net.fabricmc.loader.impl.launch.FabricLauncherBase;
 import org.apache.logging.log4j.LogManager;
 import org.objectweb.asm.ClassVisitor;
@@ -23,7 +23,7 @@ public class InternalMassAsmEntrypoint implements Runnable {
     private void registerInternalTransformers() {
         MassASMTransformer.registerVisitor(
                 "massasm-internal-inject-init-stdout",
-                new NamePatternFilter(FabricLauncherBase.getLauncher().isDevelopment() ? "net.minecraft.client.Minecraft" : "net.minecraft.client.main.Main$2", true, false,false,false),
+                Filters.exact(FabricLauncherBase.getLauncher().isDevelopment() ? "net.minecraft.client.Minecraft" : "net.minecraft.client.main.Main$2"),
                 (className, nextVisitor) -> new CreateTitlePrintTransformer(Opcodes.ASM9, nextVisitor, className)
         );
     }

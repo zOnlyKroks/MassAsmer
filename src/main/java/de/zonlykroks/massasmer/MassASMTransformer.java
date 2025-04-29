@@ -1,7 +1,7 @@
 package de.zonlykroks.massasmer;
 
-import de.zonlykroks.massasmer.filter.NamePatternFilter;
-import de.zonlykroks.massasmer.filter.TransformerFilter;
+import de.zonlykroks.massasmer.filter.impl.NamePatternFilter;
+import de.zonlykroks.massasmer.filter.api.TransformerFilter;
 import de.zonlykroks.massasmer.util.LoggerWrapper;
 import de.zonlykroks.massasmer.util.UnrecoverableMassASMRuntimeError;
 import lombok.experimental.Delegate;
@@ -19,9 +19,8 @@ import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.util.*;
-import java.util.function.Predicate;
+
 import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 public class MassASMTransformer extends GameTransformer {
     private static final LoggerWrapper LOGGER = new LoggerWrapper(LogManager.getLogger("MassASMTransformer"), MassasmerPreLaunch.configManager.isLogEnabled());
@@ -220,14 +219,12 @@ public class MassASMTransformer extends GameTransformer {
 
         if (filter instanceof NamePatternFilter npFilter) {
             String pattern = npFilter.getPattern();
-            if (npFilter.isExactContentMatch()) {
-                EXACT_TRANSFORMERS.computeIfAbsent(pattern, k -> new ArrayList<>()).add(entry);
-            } else if (npFilter.isStartsWith()) {
-                PREFIX_TRANSFORMERS.computeIfAbsent(pattern, k -> new ArrayList<>()).add(entry);
-            } else if (npFilter.isEndsWith()) {
-                SUFFIX_TRANSFORMERS.computeIfAbsent(pattern, k -> new ArrayList<>()).add(entry);
-            } else if (npFilter.isContains()) {
-                CONTAINS_TRANSFORMERS.add(entry);
+
+            switch (npFilter.getStrategy()) {
+                case EXACT -> EXACT_TRANSFORMERS.computeIfAbsent(pattern, k -> new ArrayList<>()).add(entry);
+                case STARTS_WITH -> PREFIX_TRANSFORMERS.computeIfAbsent(pattern, k -> new ArrayList<>()).add(entry);
+                case ENDS_WITH -> SUFFIX_TRANSFORMERS.computeIfAbsent(pattern, k -> new ArrayList<>()).add(entry);
+                case CONTAINS -> CONTAINS_TRANSFORMERS.add(entry);
             }
         } else {
             LOGGER.warn("Transformer '{}' has no filter, it will be applied to all classes", name);
