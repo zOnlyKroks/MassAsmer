@@ -1,11 +1,9 @@
 package de.zonlykroks.massasmer.filter;
 
 import de.zonlykroks.massasmer.filter.api.TransformerFilter;
-import de.zonlykroks.massasmer.filter.impl.CompositeFilter;
-import de.zonlykroks.massasmer.filter.impl.EmptyFilter;
-import de.zonlykroks.massasmer.filter.impl.NamePatternFilter;
-import de.zonlykroks.massasmer.filter.impl.RegexFilter;
+import de.zonlykroks.massasmer.filter.impl.*;
 
+import java.lang.annotation.Annotation;
 import java.util.regex.Pattern;
 
 /**
@@ -91,6 +89,70 @@ public final class Filters {
      */
     public static TransformerFilter regex(String regex, int flags) {
         return new RegexFilter(regex, flags);
+    }
+
+    /**
+     * Creates a filter that matches classes with the specified annotation.
+     *
+     * @param annotationClass The annotation class to check for
+     * @return A filter that matches classes with the given annotation
+     */
+    public static TransformerFilter hasAnnotation(Class<? extends Annotation> annotationClass) {
+        return AnnotationFilter.hasAnnotation(annotationClass);
+    }
+
+    /**
+     * Creates a filter that matches classes without the specified annotation.
+     *
+     * @param annotationClass The annotation class to check for absence
+     * @return A filter that matches classes without the given annotation
+     */
+    public static TransformerFilter lacksAnnotation(Class<? extends Annotation> annotationClass) {
+        return AnnotationFilter.lacksAnnotation(annotationClass);
+    }
+
+    /**
+     * Creates a filter that matches classes implementing the specified interface.
+     *
+     * @param interfaceClass The interface class that must be implemented
+     * @return A filter that matches classes implementing the given interface
+     * @throws IllegalArgumentException if the provided class is not an interface
+     */
+    public static TransformerFilter implementsInterface(Class<?> interfaceClass) {
+        return InterfaceImplementationFilter.implements_(interfaceClass);
+    }
+
+    /**
+     * Creates a filter that matches classes not implementing the specified interface.
+     *
+     * @param interfaceClass The interface class that must not be implemented
+     * @return A filter that matches classes not implementing the given interface
+     * @throws IllegalArgumentException if the provided class is not an interface
+     */
+    public static TransformerFilter doesNotImplementInterface(Class<?> interfaceClass) {
+        return InterfaceImplementationFilter.doesNotImplement(interfaceClass);
+    }
+
+    /**
+     * Creates a filter that matches classes extending the specified superclass.
+     *
+     * @param superClass The superclass that must be extended
+     * @return A filter that matches classes extending the given superclass
+     * @throws IllegalArgumentException if the provided class is an interface
+     */
+    public static TransformerFilter extendsClass(Class<?> superClass) {
+        return SuperclassFilter.extends_(superClass);
+    }
+
+    /**
+     * Creates a filter that matches classes not extending the specified superclass.
+     *
+     * @param superClass The superclass that must not be extended
+     * @return A filter that matches classes not extending the given superclass
+     * @throws IllegalArgumentException if the provided class is an interface
+     */
+    public static TransformerFilter doesNotExtendClass(Class<?> superClass) {
+        return SuperclassFilter.doesNotExtend(superClass);
     }
 
     /**

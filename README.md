@@ -2,7 +2,7 @@
 
 # MassASM API
 
-A lightweight Fabric-based API for registering on-the-fly ASM bytecode transformers across all game classes.  
+A lightweight Fabric-based API for registering on-the-fly ASM bytecode transformers across all game classes.
 MassASM extends Fabric's `GameTransformer`, applying custom transformations *after* Fabric's Minecraft patches but *before* Mixins — important for compatibility reasons.
 
 [![](https://jitpack.io/v/zOnlyKroks/MassAsmer.svg)](https://jitpack.io/#zOnlyKroks/MassAsmer)
@@ -13,14 +13,12 @@ MassASM extends Fabric's `GameTransformer`, applying custom transformations *aft
 
 1. [Getting Started](#getting-started)
 2. [Key Components](#key-components)
-3. [Registering Transformers](#registering-transformers)
-   - [Raw Bytecode Transformers](#raw-bytecode-transformers)
-   - [ClassNode Transformers](#classnode-transformers)
-   - [Visitor-Based Transformers](#visitor-based-transformers)
-4. [Entrypoints](#entrypoints)
-5. [Examples](#examples)
-6. [Error Handling](#error-handling)
-7. [License](#license)
+3. [Filters Utility](#filters-utility)
+4. [Registering Transformers](#registering-transformers)
+5. [Entrypoints](#entrypoints)
+6. [Examples](#examples)
+7. [Error Handling](#error-handling)
+8. [License](#license)
 
 ---
 
@@ -29,39 +27,84 @@ MassASM extends Fabric's `GameTransformer`, applying custom transformations *aft
 1. **Include** the `massasmer` library as a dependency in your Fabric mod.
 2. **Implement** a `PreLaunchEntrypoint` that injects MassASM into the game's transformer pipeline.
 3. **Register** your transformers by providing:
-   - a **unique name**,
-   - a **TransformerFilter**,
-   - a **transformer implementation**.
+
+   * a **unique name**,
+   * a **`TransformerFilter`** from the `Filters` utility,
+   * a **transformer implementation**.
 
 ---
 
 ## Key Components
 
-| Class                        | Description |
-|-------------------------------|-------------|
-| `MassASMTransformer`          | Extends Fabric's `GameTransformer`; manages and applies all registered MassASM transformers. |
-| `TransformerFilter`           | Interface for matching class names (e.g., `NamePatternFilter`, `CompositeFilter`, `EmptyFilter`). |
-| `MassasmerPreLaunch`          | Fabric `PreLaunchEntrypoint` to inject `MassASMTransformer` during boot. |
-| `LoggerWrapper`               | Lightweight logger wrapper used internally and in injected transformers. |
-| `InternalMassAsmEntrypoint`    | Example registration for a simple visitor-based transformer. |
+| Class                       | Description                                                                                  |
+| --------------------------- | -------------------------------------------------------------------------------------------- |
+| `MassASMTransformer`        | Extends Fabric's `GameTransformer`; manages and applies all registered MassASM transformers. |
+| `TransformerFilter`         | Interface for matching class names; use implementations from `Filters`.                      |
+| `Filters`                   | Factory for creating and combining common `TransformerFilter` instances.                     |
+| `MassasmerPreLaunch`        | Fabric `PreLaunchEntrypoint` to inject `MassASMTransformer` during boot.                     |
+| `LoggerWrapper`             | Lightweight logger wrapper used internally and in injected transformers.                     |
+| `InternalMassAsmEntrypoint` | Example registration for a simple visitor-based transformer.                                 |
+
+---
+
+## Filters Utility
+
+Use the `Filters` factory to create and compose filters:
+
+```java
+import de.zonlykroks.massasmer.filter.Filters;
+import de.zonlykroks.massasmer.filter.api.TransformerFilter;
+```
+
+### Name-Based Filters
+
+| Method                       | Description                         |
+| ---------------------------- | ----------------------------------- |
+| `Filters.all()`              | Matches *all* class names.          |
+| `Filters.none()`             | Matches *no* class names.           |
+| `Filters.exact(name)`        | Exact class name match.             |
+| `Filters.startsWith(prefix)` | Class names starting with `prefix`. |
+| `Filters.endsWith(suffix)`   | Class names ending with `suffix`.   |
+| `Filters.contains(substr)`   | Class names containing `substr`.    |
+| `Filters.regex(pattern)`     | Class names matching the regex.     |
+
+### Structure-Based Filters
+
+| Method                                  | Description                                      |
+| --------------------------------------- | ------------------------------------------------ |
+| `Filters.hasAnnotation(annotationClass)`| Classes with the specified annotation.           |
+| `Filters.lacksAnnotation(annotationClass)`| Classes without the specified annotation.      |
+| `Filters.implementsInterface(interfaceClass)`| Classes implementing the specified interface.|
+| `Filters.doesNotImplementInterface(interfaceClass)`| Classes not implementing the specified interface.|
+| `Filters.extendsClass(superClass)`      | Classes extending the specified superclass.      |
+| `Filters.doesNotExtendClass(superClass)`| Classes not extending the specified superclass.  |
+
+### Composition Filters
+
+| Method                       | Description                         |
+| ---------------------------- | ----------------------------------- |
+| `Filters.and(f1, f2)`        | Logical AND of two filters.         |
+| `Filters.or(f1, f2)`         | Logical OR of two filters.          |
+| `Filters.not(f)`             | Negates the given filter.           |
 
 ---
 
 ## Registering Transformers
 
 You must provide:
-- a **name** (string),
-- a **`TransformerFilter`** (not a simple predicate),
-- a **transformer**.
 
-There are three ways to register:
+* a **name** (string),
+* a **`TransformerFilter`** from the `Filters` utility,
+* a **transformer** implementation.
+
+There are three registration types:
 
 ### Raw Bytecode Transformers
 
 ```java
 MassASMTransformer.register(
     "unique-name",
-    new NamePatternFilter("com.example", true, false, false, false),
+    Filters.startsWith("com.example"),
     (className, classBytes) -> {
         // return a VisitorProvider
     }
@@ -73,7 +116,7 @@ MassASMTransformer.register(
 ```java
 MassASMTransformer.registerNodeTransformer(
     "node-transformer",
-    new NamePatternFilter("net.minecraft.client.Minecraft", true, false, false, false),
+    Filters.exact("net.minecraft.client.Minecraft"),
     (className, classNode) -> {
         // transform the ClassNode here
         return classNode;
@@ -86,7 +129,7 @@ MassASMTransformer.registerNodeTransformer(
 ```java
 MassASMTransformer.registerVisitor(
     "visitor-transformer",
-    new NamePatternFilter("net.minecraft.client.Minecraft", true, false, false, false),
+    Filters.contains("Minecraft"),
     (className, nextVisitor) -> new ClassVisitor(Opcodes.ASM9, nextVisitor) {
         @Override
         public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
@@ -111,9 +154,7 @@ MassASMTransformer.registerVisitor(
 
 ### MassASM Entrypoint (`mass-asm`)
 
-You must implement a `Runnable` class to register your transformers, and define it in `fabric.mod.json`.
-
-Example registration class:
+Implement a `Runnable` class to register your transformers, then declare it in `fabric.mod.json`:
 
 ```java
 public class InternalMassAsmEntrypoint implements Runnable {
@@ -124,7 +165,7 @@ public class InternalMassAsmEntrypoint implements Runnable {
 }
 ```
 
-And in `fabric.mod.json`:
+In `fabric.mod.json`:
 
 ```json
 {
@@ -140,63 +181,64 @@ And in `fabric.mod.json`:
 
 ## Examples
 
-The internal MassASM example (`InternalMassAsmEntrypoint`) demonstrates:
+### Basic Example
 
-- Dynamically picking different target classes depending on environment (dev vs production).
-- Injecting a log message into the constructor of `Minecraft` using `AdviceAdapter`.
-
-**Example snippet:**
+Here's a usage example leveraging `Filters` in an internal entrypoint:
 
 ```java
-MassASMTransformer.registerVisitor(
-    "massasm-internal-inject-init-stdout",
-    new NamePatternFilter(
-        FabricLauncherBase.getLauncher().isDevelopment()
-            ? "net.minecraft.client.Minecraft"
-            : "net.minecraft.client.main.Main$2",
-        true, false, false, false
-    ),
-    (className, nextVisitor) -> new CreateTitlePrintTransformer(Opcodes.ASM9, nextVisitor, className)
+public class InternalMassAsmEntrypoint implements Runnable {
+    @Override
+    public void run() {
+        MassASMTransformer.registerVisitor(
+            "massasm-internal-inject-init-stdout",
+            Filters.exact(
+                FabricLauncherBase.getLauncher().isDevelopment()
+                    ? "net.minecraft.client.Minecraft"
+                    : "net.minecraft.client.main.Main$2"
+            ),
+            (className, nextVisitor) -> new CreateTitlePrintTransformer(Opcodes.ASM9, nextVisitor, className)
+        );
+    }
+}
+```
+
+This injects a log message into the target constructor when running in development or production respectively.
+
+### Structure-Based Filter Examples
+
+Target all serializable classes except tests:
+
+```java
+TransformerFilter filter = Filters.and(
+    Filters.implementsInterface(Serializable.class),
+    Filters.not(Filters.contains("Test"))
 );
 ```
 
-This injects the following on constructor entry:
-```
-[MassASM] net.minecraft.client.Minecraft <init> called, this means our transformer is working, shenanigans now probably ensue. If something fails, look at the weird mod using this API!
-```
-
----
-
-## About `NamePatternFilter`
-
-The `NamePatternFilter` is used to match class names for transformations.
-
-Constructor:
+Target entities that extend a specific base class:
 
 ```java
-public NamePatternFilter(String pattern, boolean exactContentMatch, boolean startsWith, boolean endsWith, boolean contains)
+TransformerFilter entityFilter = Filters.and(
+    Filters.startsWith("net.minecraft.world.entity"),
+    Filters.extendsClass(LivingEntity.class)
+);
 ```
 
-| Parameter | Meaning |
-|:---|:---|
-| `pattern` | The string pattern to match against the class name. |
-| `exactContentMatch` | If `true`, the class name must match exactly (`className.equals(pattern)`). |
-| `startsWith` | If `true`, the class name must start with the pattern (`className.startsWith(pattern)`). |
-| `endsWith` | If `true`, the class name must end with the pattern (`className.endsWith(pattern)`). |
-| `contains` | If `true`, the class name must simply contain the pattern (`className.contains(pattern)`). |
+Target deprecated methods in client classes:
 
-The priority order for matching is:
-1. Exact match (if `exactContentMatch` is `true`).
-2. `startsWith`, `endsWith`, `contains` — in this order.
-3. If none are true, fallback to exact match.
+```java
+TransformerFilter deprecatedFilter = Filters.and(
+    Filters.startsWith("net.minecraft.client"),
+    Filters.hasAnnotation(Deprecated.class)
+);
+```
 
 ---
 
 ## Error Handling
 
-- If MassASM fails to inject due to Fabric internal changes, a stack trace will be printed.
-- If any transformer throws during bytecode transformation, an `UnrecoverableMassASMRuntimeError` is thrown.
-- **MassASM does not attempt recovery** — fatal transformer errors crash the game.
+* If MassASM fails to inject due to Fabric changes, a stack trace is printed.
+* If a transformer throws during transformation, an `UnrecoverableMassASMRuntimeError` is thrown, crashing the game.
 
 ---
 
