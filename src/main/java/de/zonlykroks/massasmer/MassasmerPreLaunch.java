@@ -10,10 +10,14 @@ import net.fabricmc.loader.api.entrypoint.EntrypointContainer;
 import net.fabricmc.loader.api.entrypoint.PreLaunchEntrypoint;
 import net.fabricmc.loader.impl.FabricLoaderImpl;
 import net.fabricmc.loader.impl.game.minecraft.MinecraftGameProvider;
+import net.fabricmc.loader.impl.game.patch.GamePatch;
+import net.fabricmc.loader.impl.game.patch.GameTransformer;
 import org.apache.logging.log4j.LogManager;
 import org.objectweb.asm.Type;
 
 import java.lang.reflect.Field;
+import java.util.List;
+import java.util.Map;
 
 public class MassasmerPreLaunch implements PreLaunchEntrypoint {
 
@@ -38,9 +42,36 @@ public class MassasmerPreLaunch implements PreLaunchEntrypoint {
                 ((FabricLoaderImpl) FabricLoader.getInstance()).getGameProvider();
 
         try {
-            Field transformerField = MinecraftGameProvider.class.getDeclaredField("transformer");
+            Field transformerField = MinecraftGameProvider.class
+                    .getDeclaredField("transformer");
             transformerField.setAccessible(true);
-            transformerField.set(provider, new MassASMTransformer());
+
+            GameTransformer oldTransformer = (GameTransformer) transformerField
+                    .get(provider);
+
+            Field patchesField = GameTransformer.class
+                    .getDeclaredField("patches");
+            patchesField.setAccessible(true);
+            @SuppressWarnings("unchecked")
+            List<GamePatch> patches = (List<GamePatch>) patchesField
+                    .get(oldTransformer);
+
+            Field classesField = GameTransformer.class
+                    .getDeclaredField("patchedClasses");
+            classesField.setAccessible(true);
+            @SuppressWarnings("unchecked")
+            Map<String, byte[]> patchedClasses = (Map<String, byte[]>) classesField
+                    .get(oldTransformer);
+
+            Field locatedField = GameTransformer.class
+                    .getDeclaredField("entrypointsLocated");
+            locatedField.setAccessible(true);
+            boolean entrypointsLocated = locatedField.getBoolean(oldTransformer);
+
+            MassASMTransformer custom = new MassASMTransformer(
+                    patches, patchedClasses, entrypointsLocated);
+
+            transformerField.set(provider, custom);
         } catch (NoSuchFieldException | IllegalAccessException e) {
             if (!configManager.isAllowAttachNonFailHard()) {
                 throw new UnrecoverableMassASMRuntimeError("Cannot set custom game provider transformer, failing!", e);

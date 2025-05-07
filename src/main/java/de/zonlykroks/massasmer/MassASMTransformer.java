@@ -33,26 +33,39 @@ public class MassASMTransformer extends GameTransformer {
     private static final List<NamedTransformerEntry> OTHER_TRANSFORMERS = new ArrayList<>();
 
     private final Map<String, byte[]> additionalTransformedClasses = new HashMap<>();
-    private boolean massTransformersApplied = false;
-    private boolean entrypointsLocated = false;
 
-    @Delegate(excludes = TransformExclusions.class)
-    private final GameTransformer delegate;
+    public MassASMTransformer(
+            List<GamePatch> originalPatches,
+            Map<String, byte[]> originalPatchedClasses,
+            boolean originalEntrypointsLocated
+    ) {
+        super(originalPatches.toArray(new GamePatch[0]));
 
-    public MassASMTransformer(GamePatch... patches) {
-        super(patches);
-        this.delegate = this;
-    }
+        try {
+            Field patchesField = GameTransformer.class
+                    .getDeclaredField("patches");
+            patchesField.setAccessible(true);
 
-    private interface TransformExclusions {
-        byte[] transform(String className);
-    }
+            patchesField.set(this, originalPatches);
 
-    @Override
-    public void locateEntrypoints(FabricLauncher launcher, List<Path> gameJars) {
-        super.locateEntrypoints(launcher, gameJars);
-        entrypointsLocated = true;
-        applyMassTransformers();
+            Field classesField = GameTransformer.class
+                    .getDeclaredField("patchedClasses");
+            classesField.setAccessible(true);
+            classesField.set(this, originalPatchedClasses);
+
+            Field locatedField = GameTransformer.class
+                    .getDeclaredField("entrypointsLocated");
+            locatedField.setAccessible(true);
+            locatedField.setBoolean(this, originalEntrypointsLocated);
+
+        } catch (NoSuchFieldException | IllegalAccessException e) {
+            // something went horribly wrong if we can't set these
+            throw new UnrecoverableMassASMRuntimeError(
+                    "Failed to steal GameTransformer state", e);
+        }
+
+        LOGGER.info("MassASMTransformer initialized with {} patches",
+                originalPatches.size());
     }
 
     @Override
@@ -63,22 +76,6 @@ public class MassASMTransformer extends GameTransformer {
 
         if (additionalTransformedClasses.containsKey(className)) {
             return additionalTransformedClasses.get(className);
-        }
-
-        if (!entrypointsLocated) {
-            try {
-                byte[] classBytes = getClassBytesFromClassLoader(className);
-                if (classBytes != null) {
-                    byte[] transformed = applyTransformers(className, classBytes);
-                    if (transformed != null) {
-                        additionalTransformedClasses.put(className, transformed);
-                        return transformed;
-                    }
-                }
-            } catch (Exception e) {
-                throw new UnrecoverableMassASMRuntimeError("Error transforming " + className + " before entrypoints located", e);
-            }
-            return null;
         }
 
         try {
@@ -123,30 +120,6 @@ public class MassASMTransformer extends GameTransformer {
         } catch (IOException e) {
             return null;
         }
-    }
-
-    private void applyMassTransformers() {
-        if (massTransformersApplied) return;
-        try {
-            Field patchedClassesField = GameTransformer.class.getDeclaredField("patchedClasses");
-            patchedClassesField.setAccessible(true);
-            @SuppressWarnings("unchecked")
-            Map<String, byte[]> patchedClasses = (Map<String, byte[]>) patchedClassesField.get(this);
-
-            if (patchedClasses != null) {
-                for (String className : new HashMap<>(patchedClasses).keySet()) {
-                    byte[] originalBytes = patchedClasses.get(className);
-                    byte[] transformedBytes = applyTransformers(className, originalBytes);
-                    if (transformedBytes != null) {
-                        additionalTransformedClasses.put(className, transformedBytes);
-                        patchedClasses.put(className, transformedBytes);
-                    }
-                }
-            }
-        } catch (NoSuchFieldException | IllegalAccessException e) {
-            throw new UnrecoverableMassASMRuntimeError("MassASMTransformer: Failed to access patchedClasses", e);
-        }
-        massTransformersApplied = true;
     }
 
     private byte[] applyTransformers(String className, byte[] classBytes) {
