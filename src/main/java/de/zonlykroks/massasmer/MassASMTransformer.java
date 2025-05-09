@@ -225,7 +225,7 @@ public class MassASMTransformer extends GameTransformer {
             boolean modified = transformer.transform(className, node);
 
             if (modified) {
-                ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_MAXS);
+                ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_MAXS | ClassWriter.COMPUTE_FRAMES);
                 node.accept(writer);
                 return writer.toByteArray();
             }
@@ -241,7 +241,7 @@ public class MassASMTransformer extends GameTransformer {
                                        VisitorProvider visitorProvider) {
         register(name, filter, (className, classBytes) -> {
             ClassReader reader = new ClassReader(classBytes);
-            ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_MAXS);
+            ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_MAXS | ClassWriter.COMPUTE_FRAMES);
             ClassVisitor visitor = visitorProvider.createVisitor(className, writer);
             reader.accept(visitor, ClassReader.EXPAND_FRAMES);
             return writer.toByteArray();
