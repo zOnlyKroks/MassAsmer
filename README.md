@@ -24,7 +24,7 @@ MassASM extends Fabric's `GameTransformer`, applying custom transformations *aft
 
 ## Getting Started
 
-1. **Include** the `massasmer` library as a dependency in your Fabric mod.
+1. **Implement** the `massasmer` library as a dependency in your Fabric mod, it has to be present at runtime in the mods folder.
 2. **Implement** a `PreLaunchEntrypoint` that injects MassASM into the game's transformer pipeline.
 3. **Register** your transformers by providing:
 
