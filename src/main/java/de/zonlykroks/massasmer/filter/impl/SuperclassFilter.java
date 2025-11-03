@@ -1,22 +1,12 @@
 package de.zonlykroks.massasmer.filter.impl;
 
 import de.zonlykroks.massasmer.filter.api.TransformerFilter;
-import lombok.AccessLevel;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
-
-import java.util.Objects;
 
 /**
  * Filter that matches classes based on their inheritance hierarchy.
  * This filter checks if a class extends a specific superclass.
  */
-@Getter
-@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-public class SuperclassFilter implements TransformerFilter {
-    private final Class<?> superClass;
-    private final boolean requireExtension;
-
+public record SuperclassFilter(Class<?> superClass, boolean requireExtension) implements TransformerFilter {
     /**
      * Creates a filter that matches classes extending the specified superclass.
      *
@@ -67,17 +57,4 @@ public class SuperclassFilter implements TransformerFilter {
         }
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        SuperclassFilter that = (SuperclassFilter) o;
-        return requireExtension == that.requireExtension &&
-                Objects.equals(superClass, that.superClass);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(superClass, requireExtension);
-    }
 }

@@ -1,19 +1,13 @@
 package de.zonlykroks.massasmer.filter.impl;
 
 import de.zonlykroks.massasmer.filter.api.TransformerFilter;
-import lombok.AccessLevel;
-import lombok.RequiredArgsConstructor;
 
 /**
  * Combines two filters with logical operations (AND, OR, NOT).
  * Used to build complex filtering expressions by combining simpler filters.
  */
-@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-public class CompositeFilter implements TransformerFilter {
-    private final TransformerFilter left;
-    private final TransformerFilter right;
-    private final LogicalOperation operation;
-
+public record CompositeFilter(TransformerFilter left, TransformerFilter right,
+                              LogicalOperation operation) implements TransformerFilter {
     /**
      * Logical operations that can be applied to filters
      */
@@ -35,7 +29,7 @@ public class CompositeFilter implements TransformerFilter {
     /**
      * Creates a composite filter with logical AND between two filters.
      *
-     * @param left The first filter
+     * @param left  The first filter
      * @param right The second filter
      * @return A new composite filter that matches when both filters match
      */
@@ -46,7 +40,7 @@ public class CompositeFilter implements TransformerFilter {
     /**
      * Creates a composite filter with logical OR between two filters.
      *
-     * @param left The first filter
+     * @param left  The first filter
      * @param right The second filter
      * @return A new composite filter that matches when either filter matches
      */

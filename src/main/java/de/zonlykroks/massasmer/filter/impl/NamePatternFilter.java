@@ -1,19 +1,11 @@
 package de.zonlykroks.massasmer.filter.impl;
 
 import de.zonlykroks.massasmer.filter.api.TransformerFilter;
-import lombok.AccessLevel;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 
 /**
  * A string-based filter for matching class names using different strategies.
  */
-@Getter
-@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-public class NamePatternFilter implements TransformerFilter {
-    private final String pattern;
-    private final MatchStrategy strategy;
-
+public record NamePatternFilter(String pattern, MatchStrategy strategy) implements TransformerFilter {
     /**
      * Strategy enum defining how the pattern should be matched
      */

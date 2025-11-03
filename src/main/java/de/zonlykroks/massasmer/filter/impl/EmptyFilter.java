@@ -6,16 +6,10 @@ import de.zonlykroks.massasmer.filter.api.TransformerFilter;
  * Predefined filters that match all or no classes.
  * These are implemented as singletons to avoid unnecessary object creation.
  */
-public final class EmptyFilter implements TransformerFilter {
+public record EmptyFilter(boolean matchResult) implements TransformerFilter {
     // Private singleton instances
     private static final EmptyFilter MATCH_ALL = new EmptyFilter(true);
     private static final EmptyFilter MATCH_NONE = new EmptyFilter(false);
-
-    private final boolean matchResult;
-
-    private EmptyFilter(boolean matchResult) {
-        this.matchResult = matchResult;
-    }
 
     @Override
     public boolean matches(String className) {

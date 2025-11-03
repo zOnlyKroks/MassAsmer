@@ -81,17 +81,6 @@ public final class Filters {
     }
 
     /**
-     * Creates a filter that matches class names using a regular expression.
-     *
-     * @param regex The regular expression to match against
-     * @param flags Pattern compilation flags (see {@link Pattern})
-     * @return A filter for regex matching
-     */
-    public static TransformerFilter regex(String regex, int flags) {
-        return new RegexFilter(regex, flags);
-    }
-
-    /**
      * Creates a filter that matches classes with the specified annotation.
      *
      * @param annotationClass The annotation class to check for

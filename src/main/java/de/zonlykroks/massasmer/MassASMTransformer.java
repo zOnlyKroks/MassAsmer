@@ -1,14 +1,13 @@
 package de.zonlykroks.massasmer;
 
-import de.zonlykroks.massasmer.filter.Filters;
+import de.zonlykroks.massasmer.api.TransformerRegistration;
 import de.zonlykroks.massasmer.filter.impl.NamePatternFilter;
 import de.zonlykroks.massasmer.filter.api.TransformerFilter;
 import de.zonlykroks.massasmer.util.LoggerWrapper;
+import de.zonlykroks.massasmer.util.TransformerException;
 import de.zonlykroks.massasmer.util.UnrecoverableMassASMRuntimeError;
-import lombok.experimental.Delegate;
 import net.fabricmc.loader.impl.game.patch.GamePatch;
 import net.fabricmc.loader.impl.game.patch.GameTransformer;
-import net.fabricmc.loader.impl.launch.FabricLauncher;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassWriter;
@@ -18,8 +17,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Field;
-import java.nio.file.Path;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.apache.logging.log4j.LogManager;
 
@@ -128,22 +127,54 @@ public class MassASMTransformer extends GameTransformer {
         byte[] result = classBytes;
         boolean modified = false;
 
-        // Check exact matches first
-        List<NamedTransformerEntry> exact = EXACT_TRANSFORMERS.get(className);
-        if (exact != null) {
-            for (NamedTransformerEntry entry : exact) {
-                byte[] transformed = entry.transform(className, result);
-                if (transformed != null) {
-                    result = transformed;
-                    modified = true;
+        // Check exact matches first (fastest path)
+        if (!EXACT_TRANSFORMERS.isEmpty()) {
+            List<NamedTransformerEntry> exact = EXACT_TRANSFORMERS.get(className);
+            if (exact != null) {
+                for (NamedTransformerEntry entry : exact) {
+                    byte[] transformed = entry.transform(className, result);
+                    if (transformed != null) {
+                        result = transformed;
+                        modified = true;
+                    }
                 }
             }
         }
 
         // Check prefixes
-        for (Map.Entry<String, List<NamedTransformerEntry>> entry : PREFIX_TRANSFORMERS.entrySet()) {
-            if (className.startsWith(entry.getKey())) {
-                for (NamedTransformerEntry transformer : entry.getValue()) {
+        if (!PREFIX_TRANSFORMERS.isEmpty()) {
+            for (Map.Entry<String, List<NamedTransformerEntry>> entry : PREFIX_TRANSFORMERS.entrySet()) {
+                if (className.startsWith(entry.getKey())) {
+                    for (NamedTransformerEntry transformer : entry.getValue()) {
+                        byte[] transformed = transformer.transform(className, result);
+                        if (transformed != null) {
+                            result = transformed;
+                            modified = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Check suffixes
+        if (!SUFFIX_TRANSFORMERS.isEmpty()) {
+            for(Map.Entry<String, List<NamedTransformerEntry>> entry : SUFFIX_TRANSFORMERS.entrySet()) {
+                if (className.endsWith(entry.getKey())) {
+                    for (NamedTransformerEntry transformer : entry.getValue()) {
+                        byte[] transformed = transformer.transform(className, result);
+                        if (transformed != null) {
+                            result = transformed;
+                            modified = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Check contains patterns
+        if (!CONTAINS_TRANSFORMERS.isEmpty()) {
+            for(NamedTransformerEntry transformer : CONTAINS_TRANSFORMERS) {
+                if (transformer.matches(className)) {
                     byte[] transformed = transformer.transform(className, result);
                     if (transformed != null) {
                         result = transformed;
@@ -153,34 +184,15 @@ public class MassASMTransformer extends GameTransformer {
             }
         }
 
-        for(Map.Entry<String, List<NamedTransformerEntry>> entry : SUFFIX_TRANSFORMERS.entrySet()) {
-            if (className.endsWith(entry.getKey())) {
-                for (NamedTransformerEntry transformer : entry.getValue()) {
+        // Check other/custom filters
+        if (!OTHER_TRANSFORMERS.isEmpty()) {
+            for(NamedTransformerEntry transformer : OTHER_TRANSFORMERS) {
+                if (transformer.matches(className)) {
                     byte[] transformed = transformer.transform(className, result);
                     if (transformed != null) {
                         result = transformed;
                         modified = true;
                     }
-                }
-            }
-        }
-
-        for(NamedTransformerEntry transformer : CONTAINS_TRANSFORMERS) {
-            if (transformer.matches(className)) {
-                byte[] transformed = transformer.transform(className, result);
-                if (transformed != null) {
-                    result = transformed;
-                    modified = true;
-                }
-            }
-        }
-
-        for(NamedTransformerEntry transformer : OTHER_TRANSFORMERS) {
-            if (transformer.matches(className)) {
-                byte[] transformed = transformer.transform(className, result);
-                if (transformed != null) {
-                    result = transformed;
-                    modified = true;
                 }
             }
         }
@@ -190,34 +202,85 @@ public class MassASMTransformer extends GameTransformer {
 
     /**
      * Register a raw bytecode transformer with a class filter and name
+     * @param name Unique name for the transformer
+     * @param filter Filter to determine which classes to transform
+     * @param transformer The transformer implementation
+     * @return TransformerRegistration handle for controlling this transformer
      */
-    public static void register(String name, TransformerFilter filter, ClassTransformer transformer) {
-        LOGGER.info("Registering transformer '{}' for {}", name, filter);
-        final NamedTransformerEntry entry = new NamedTransformerEntry(name, filter, transformer);
+    public static TransformerRegistration register(String name, TransformerFilter filter, ClassTransformer transformer) {
+        return register(name, filter, transformer, 0);
+    }
 
-        if (filter instanceof NamePatternFilter npFilter) {
-            String pattern = npFilter.getPattern();
+    /**
+     * Register a raw bytecode transformer with a class filter, name, and priority
+     * @param name Unique name for the transformer
+     * @param filter Filter to determine which classes to transform
+     * @param transformer The transformer implementation
+     * @param priority Priority (higher executes first, default is 0)
+     * @return TransformerRegistration handle for controlling this transformer
+     */
+    public static TransformerRegistration register(String name, TransformerFilter filter, ClassTransformer transformer, int priority) {
+        MassasmerPreLaunch.requireUnfrozen();
+        LOGGER.info("Registering transformer '{}' with priority {} for {}", name, priority, filter);
+        final NamedTransformerEntry entry = new NamedTransformerEntry(name, filter, transformer, priority);
 
-            switch (npFilter.getStrategy()) {
-                case EXACT -> EXACT_TRANSFORMERS.computeIfAbsent(pattern, k -> new ArrayList<>()).add(entry);
-                case STARTS_WITH -> PREFIX_TRANSFORMERS.computeIfAbsent(pattern, k -> new ArrayList<>()).add(entry);
-                case ENDS_WITH -> SUFFIX_TRANSFORMERS.computeIfAbsent(pattern, k -> new ArrayList<>()).add(entry);
-                case CONTAINS -> CONTAINS_TRANSFORMERS.add(entry);
+        if (filter instanceof NamePatternFilter(String pattern, NamePatternFilter.MatchStrategy strategy)) {
+
+            switch (strategy) {
+                case EXACT -> addSortedByPriority(EXACT_TRANSFORMERS.computeIfAbsent(pattern, k -> new ArrayList<>()), entry);
+                case STARTS_WITH -> addSortedByPriority(PREFIX_TRANSFORMERS.computeIfAbsent(pattern, k -> new ArrayList<>()), entry);
+                case ENDS_WITH -> addSortedByPriority(SUFFIX_TRANSFORMERS.computeIfAbsent(pattern, k -> new ArrayList<>()), entry);
+                case CONTAINS -> addSortedByPriority(CONTAINS_TRANSFORMERS, entry);
             }
         } else {
-            LOGGER.warn("Transformer '{}' has no filter, it will be applied to all classes", name);
-
-            OTHER_TRANSFORMERS.add(entry);
+            LOGGER.warn("Transformer '{}' has no NamePatternFilter, it will be applied to all matching classes", name);
+            addSortedByPriority(OTHER_TRANSFORMERS, entry);
         }
+
+        return entry;
+    }
+
+    /**
+     * Helper method to add transformers sorted by priority (higher priority first)
+     */
+    private static void addSortedByPriority(List<NamedTransformerEntry> list, NamedTransformerEntry entry) {
+        int insertIndex = 0;
+        for (int i = 0; i < list.size(); i++) {
+            if (list.get(i).priority() < entry.priority()) {
+                insertIndex = i;
+                break;
+            }
+            insertIndex = i + 1;
+        }
+        list.add(insertIndex, entry);
     }
 
     /**
      * Register a ClassNode based transformer with a class filter and name
+     * @param name Unique name for the transformer
+     * @param filter Filter to determine which classes to transform
+     * @param transformer The transformer implementation
+     * @return TransformerRegistration handle for controlling this transformer
      */
-    public static void registerNodeTransformer(String name,
+    public static TransformerRegistration registerNodeTransformer(String name,
                                                TransformerFilter filter,
                                                ClassNodeTransformer transformer) {
-        register(name, filter, (className, classBytes) -> {
+        return registerNodeTransformer(name, filter, transformer, 0);
+    }
+
+    /**
+     * Register a ClassNode based transformer with a class filter, name, and priority
+     * @param name Unique name for the transformer
+     * @param filter Filter to determine which classes to transform
+     * @param transformer The transformer implementation
+     * @param priority Priority (higher executes first, default is 0)
+     * @return TransformerRegistration handle for controlling this transformer
+     */
+    public static TransformerRegistration registerNodeTransformer(String name,
+                                               TransformerFilter filter,
+                                               ClassNodeTransformer transformer,
+                                               int priority) {
+        return register(name, filter, (className, classBytes) -> {
             ClassReader reader = new ClassReader(classBytes);
             ClassNode node = new ClassNode();
             reader.accept(node, ClassReader.EXPAND_FRAMES);
@@ -230,32 +293,286 @@ public class MassASMTransformer extends GameTransformer {
                 return writer.toByteArray();
             }
             return null;
-        });
+        }, priority);
     }
 
     /**
      * Register a visitor-based transformer with a class filter and name
+     * @param name Unique name for the transformer
+     * @param filter Filter to determine which classes to transform
+     * @param visitorProvider Provider for creating the ClassVisitor
+     * @return TransformerRegistration handle for controlling this transformer
      */
-    public static void registerVisitor(String name,
+    public static TransformerRegistration registerVisitor(String name,
                                        TransformerFilter filter,
                                        VisitorProvider visitorProvider) {
-        register(name, filter, (className, classBytes) -> {
+        return registerVisitor(name, filter, visitorProvider, 0);
+    }
+
+    /**
+     * Register a visitor-based transformer with a class filter, name, and priority
+     * @param name Unique name for the transformer
+     * @param filter Filter to determine which classes to transform
+     * @param visitorProvider Provider for creating the ClassVisitor
+     * @param priority Priority (higher executes first, default is 0)
+     * @return TransformerRegistration handle for controlling this transformer
+     */
+    public static TransformerRegistration registerVisitor(String name,
+                                       TransformerFilter filter,
+                                       VisitorProvider visitorProvider,
+                                       int priority) {
+        return register(name, filter, (className, classBytes) -> {
             ClassReader reader = new ClassReader(classBytes);
             ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_MAXS | ClassWriter.COMPUTE_FRAMES);
             ClassVisitor visitor = visitorProvider.createVisitor(className, writer);
             reader.accept(visitor, ClassReader.EXPAND_FRAMES);
             return writer.toByteArray();
-        });
+        }, priority);
     }
 
-    // Internal named entry
-    private record NamedTransformerEntry(String name, TransformerFilter filter, ClassTransformer transformer) {
+    /**
+     * Conditionally register a transformer only if the condition is true
+     * @param name Unique name for the transformer
+     * @param filter Filter to determine which classes to transform
+     * @param transformer The transformer implementation
+     * @param condition Only register if this is true
+     * @return TransformerRegistration handle, or a no-op registration if condition is false
+     */
+    public static TransformerRegistration registerConditional(String name,
+                                                              TransformerFilter filter,
+                                                              ClassTransformer transformer,
+                                                              boolean condition) {
+        return registerConditional(name, filter, transformer, 0, condition);
+    }
+
+    /**
+     * Conditionally register a transformer only if the condition is true
+     * @param name Unique name for the transformer
+     * @param filter Filter to determine which classes to transform
+     * @param transformer The transformer implementation
+     * @param priority Priority (higher executes first, default is 0)
+     * @param condition Only register if this is true
+     * @return TransformerRegistration handle, or a no-op registration if condition is false
+     */
+    public static TransformerRegistration registerConditional(String name,
+                                                              TransformerFilter filter,
+                                                              ClassTransformer transformer,
+                                                              int priority,
+                                                              boolean condition) {
+        if (condition) {
+            return register(name, filter, transformer, priority);
+        }
+        LOGGER.info("Skipping transformer '{}' due to condition", name);
+        return NoOpRegistration.INSTANCE;
+    }
+
+    /**
+     * Create a builder for more complex transformer registrations
+     * @param name Unique name for the transformer
+     * @return A new TransformerBuilder
+     */
+    public static TransformerBuilder builder(String name) {
+        return new TransformerBuilder(name);
+    }
+
+    // Internal named entry implementing TransformerRegistration
+    private static class NamedTransformerEntry implements TransformerRegistration {
+        private final String name;
+        private final TransformerFilter filter;
+        private final ClassTransformer transformer;
+        private final int priority;
+        private final AtomicBoolean enabled;
+
+        public NamedTransformerEntry(String name, TransformerFilter filter, ClassTransformer transformer, int priority) {
+            this.name = name;
+            this.filter = filter;
+            this.transformer = transformer;
+            this.priority = priority;
+            this.enabled = new AtomicBoolean(true);
+        }
+
         boolean matches(String className) {
-            return filter.matches(className);
+            return enabled.get() && filter.matches(className);
         }
 
         byte[] transform(String className, byte[] bytes) {
-            return transformer.transform(className, bytes);
+            if (!enabled.get()) {
+                return null;
+            }
+            try {
+                return transformer.transform(className, bytes);
+            } catch (Exception e) {
+                throw new TransformerException(name, className, e);
+            }
+        }
+
+        @Override
+        public String name() {
+            return name;
+        }
+
+        @Override
+        public TransformerFilter filter() {
+            return filter;
+        }
+
+        @Override
+        public int priority() {
+            return priority;
+        }
+
+        @Override
+        public boolean isEnabled() {
+            return enabled.get();
+        }
+
+        @Override
+        public void disable() {
+            enabled.set(false);
+            LOGGER.info("Disabled transformer '{}'", name);
+        }
+
+        @Override
+        public void enable() {
+            enabled.set(true);
+            LOGGER.info("Enabled transformer '{}'", name);
+        }
+    }
+
+    private static class NoOpRegistration implements TransformerRegistration {
+        static final NoOpRegistration INSTANCE = new NoOpRegistration();
+
+        private NoOpRegistration() {}
+
+        @Override
+        public String name() {
+            return "noop";
+        }
+
+        @Override
+        public TransformerFilter filter() {
+            return className -> false;
+        }
+
+        @Override
+        public int priority() {
+            return 0;
+        }
+
+        @Override
+        public boolean isEnabled() {
+            return false;
+        }
+
+        @Override
+        public void disable() {
+            // No-op
+        }
+
+        @Override
+        public void enable() {
+            // No-op
+        }
+    }
+
+    public static class TransformerBuilder {
+        private final String name;
+        private TransformerFilter filter;
+        private int priority = 0;
+        private boolean condition = true;
+        private ClassTransformer transformer;
+        private ClassNodeTransformer nodeTransformer;
+        private VisitorProvider visitorProvider;
+
+        private TransformerBuilder(String name) {
+            this.name = name;
+        }
+
+        /**
+         * Set the filter for matching classes
+         */
+        public TransformerBuilder filter(TransformerFilter filter) {
+            this.filter = filter;
+            return this;
+        }
+
+        /**
+         * Set the priority (higher executes first)
+         */
+        public TransformerBuilder priority(int priority) {
+            this.priority = priority;
+            return this;
+        }
+
+        /**
+         * Set a condition - only register if true
+         */
+        public TransformerBuilder condition(boolean condition) {
+            this.condition = condition;
+            return this;
+        }
+
+        /**
+         * Only register in development mode
+         */
+        public TransformerBuilder onlyInDev() {
+            return condition(net.fabricmc.loader.impl.launch.FabricLauncherBase.getLauncher().isDevelopment());
+        }
+
+        /**
+         * Only register in production mode
+         */
+        public TransformerBuilder onlyInProduction() {
+            return condition(!net.fabricmc.loader.impl.launch.FabricLauncherBase.getLauncher().isDevelopment());
+        }
+
+        /**
+         * Set a raw bytecode transformer
+         */
+        public TransformerBuilder transformer(ClassTransformer transformer) {
+            this.transformer = transformer;
+            return this;
+        }
+
+        /**
+         * Set a ClassNode transformer
+         */
+        public TransformerBuilder nodeTransformer(ClassNodeTransformer nodeTransformer) {
+            this.nodeTransformer = nodeTransformer;
+            return this;
+        }
+
+        /**
+         * Set a visitor provider
+         */
+        public TransformerBuilder visitor(VisitorProvider visitorProvider) {
+            this.visitorProvider = visitorProvider;
+            return this;
+        }
+
+        /**
+         * Register the transformer with the configured settings
+         */
+        public TransformerRegistration register() {
+            if (filter == null) {
+                throw new IllegalStateException("Filter must be set before registering");
+            }
+
+            if (!condition) {
+                LOGGER.info("Skipping transformer '{}' due to condition", name);
+                return NoOpRegistration.INSTANCE;
+            }
+
+            // Determine which type of transformer to register
+            if (transformer != null) {
+                return MassASMTransformer.register(name, filter, transformer, priority);
+            } else if (nodeTransformer != null) {
+                return registerNodeTransformer(name, filter, nodeTransformer, priority);
+            } else if (visitorProvider != null) {
+                return registerVisitor(name, filter, visitorProvider, priority);
+            } else {
+                throw new IllegalStateException("One of transformer, nodeTransformer, or visitorProvider must be set");
+            }
         }
     }
 

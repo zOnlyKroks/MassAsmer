@@ -25,17 +25,6 @@ public class RegexFilter implements TransformerFilter {
         this.pattern = Pattern.compile(regex);
     }
 
-    /**
-     * Creates a new filter with the given regex pattern and compilation flags.
-     *
-     * @param regex The regular expression to match against class names
-     * @param flags Pattern compilation flags (see {@link Pattern})
-     */
-    public RegexFilter(String regex, int flags) {
-        this.patternString = regex;
-        this.pattern = Pattern.compile(regex, flags);
-    }
-
     @Override
     public boolean matches(String className) {
         if (className == null) {

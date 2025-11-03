@@ -1,22 +1,13 @@
 package de.zonlykroks.massasmer.filter.impl;
 
 import de.zonlykroks.massasmer.filter.api.TransformerFilter;
-import lombok.AccessLevel;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
-
-import java.util.Objects;
 
 /**
  * Filter that matches classes based on interface implementation.
  * This filter checks if a class implements a specific interface or not.
  */
-@Getter
-@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-public class InterfaceImplementationFilter implements TransformerFilter {
-    private final Class<?> interfaceClass;
-    private final boolean requireImplementation;
-
+public record InterfaceImplementationFilter(Class<?> interfaceClass,
+                                            boolean requireImplementation) implements TransformerFilter {
     /**
      * Creates a filter that matches classes implementing the specified interface.
      *
@@ -61,17 +52,4 @@ public class InterfaceImplementationFilter implements TransformerFilter {
         }
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        InterfaceImplementationFilter that = (InterfaceImplementationFilter) o;
-        return requireImplementation == that.requireImplementation &&
-                Objects.equals(interfaceClass, that.interfaceClass);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(interfaceClass, requireImplementation);
-    }
 }

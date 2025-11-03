@@ -2,7 +2,7 @@ import org.ajoberstar.grgit.Grgit
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider
 
 plugins {
-    id 'fabric-loom' version '1.11.0-alpha.12'
+    id 'fabric-loom' version '1.12-SNAPSHOT'
     id 'maven-publish'
     id 'com.github.johnrengelman.shadow' version '8.1.1'
     id 'org.ajoberstar.grgit' version '5.0.0'

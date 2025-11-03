@@ -1,7 +1,6 @@
 package de.zonlykroks.massasmer;
 
 import de.zonlykroks.massasmer.filter.Filters;
-import de.zonlykroks.massasmer.filter.impl.NamePatternFilter;
 import de.zonlykroks.massasmer.util.LoggerWrapper;
 import net.fabricmc.loader.impl.launch.FabricLauncherBase;
 import org.apache.logging.log4j.LogManager;
@@ -21,11 +20,10 @@ public class InternalMassAsmEntrypoint implements Runnable {
     }
 
     private void registerInternalTransformers() {
-        MassASMTransformer.registerVisitor(
-                "massasm-internal-inject-init-stdout",
-                Filters.exact(FabricLauncherBase.getLauncher().isDevelopment() ? "net.minecraft.client.Minecraft" : "net.minecraft.client.main.Main$2"),
-                (className, nextVisitor) -> new CreateTitlePrintTransformer(Opcodes.ASM9, nextVisitor, className)
-        );
+        MassASMTransformer.builder("massasm-internal-inject-init-stdout")
+                .filter(Filters.exact(FabricLauncherBase.getLauncher().isDevelopment() ? "net.minecraft.client.Minecraft" : "net.minecraft.client.main.Main$2"))
+                        .visitor((className, nextVisitor) -> new CreateTitlePrintTransformer(Opcodes.ASM9, nextVisitor, className))
+                                .register();
     }
 
     private static class CreateTitlePrintTransformer extends ClassVisitor {
@@ -48,9 +46,6 @@ public class InternalMassAsmEntrypoint implements Runnable {
                 return new AdviceAdapter(api, mv, access, name, descriptor) {
                     @Override
                     protected void onMethodEnter() {
-                        // Injecting the logger call into the constructor
-                        // INTERNAL_TEST_LOGGER.info("[MassASM] <init> called for " + className);
-
                         // Load the logger
                         visitFieldInsn(Opcodes.GETSTATIC,
                                 "de/zonlykroks/massasmer/InternalMassAsmEntrypoint",

@@ -1,23 +1,15 @@
 package de.zonlykroks.massasmer.filter.impl;
 
 import de.zonlykroks.massasmer.filter.api.TransformerFilter;
-import lombok.AccessLevel;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 
 import java.lang.annotation.Annotation;
-import java.util.Objects;
 
 /**
  * Filter that matches classes based on the presence of specific annotations.
  * This filter allows filtering classes that are annotated with particular annotations.
  */
-@Getter
-@RequiredArgsConstructor(access = AccessLevel.PRIVATE)
-public class AnnotationFilter implements TransformerFilter {
-    private final Class<? extends Annotation> annotationClass;
-    private final boolean requireAnnotation;
-
+public record AnnotationFilter(Class<? extends Annotation> annotationClass,
+                               boolean requireAnnotation) implements TransformerFilter {
     /**
      * Creates a filter that matches classes annotated with the specified annotation.
      *
@@ -54,17 +46,4 @@ public class AnnotationFilter implements TransformerFilter {
         }
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        AnnotationFilter that = (AnnotationFilter) o;
-        return requireAnnotation == that.requireAnnotation &&
-                Objects.equals(annotationClass, that.annotationClass);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(annotationClass, requireAnnotation);
-    }
 }

@@ -4,8 +4,6 @@ import de.zonlykroks.massasmer.MassasmerPreLaunch;
 import de.zonlykroks.massasmer.filter.Filters;
 import de.zonlykroks.massasmer.filter.api.TransformerFilter;
 import net.fabricmc.loader.api.FabricLoader;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
 import java.io.InputStream;
