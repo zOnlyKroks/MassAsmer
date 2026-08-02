@@ -8,14 +8,14 @@ import de.zonlykroks.massasmer.util.TransformerException;
 import de.zonlykroks.massasmer.util.UnrecoverableMassASMRuntimeError;
 import net.fabricmc.loader.impl.game.patch.GamePatch;
 import net.fabricmc.loader.impl.game.patch.GameTransformer;
+import net.fabricmc.loader.impl.launch.FabricLauncherBase;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.tree.ClassNode;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
 import java.lang.reflect.Field;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -30,6 +30,22 @@ public class MassASMTransformer extends GameTransformer {
     private static final Map<String, List<NamedTransformerEntry>> SUFFIX_TRANSFORMERS = new HashMap<>();
     private static final List<NamedTransformerEntry> CONTAINS_TRANSFORMERS = new ArrayList<>();
     private static final List<NamedTransformerEntry> OTHER_TRANSFORMERS = new ArrayList<>();
+    private static final MethodHandle GET_RAW_CLASS_BYTE_ARRAY;
+
+    static {
+        var targetCl = FabricLauncherBase.getLauncher().getTargetClassLoader();
+        var targetClClass = targetCl.getClass();
+        try {
+            var delegateField = targetClClass.getDeclaredField("delegate");
+            delegateField.setAccessible(true);
+            var targetClDelegate = delegateField.get(targetCl);
+            var delegateClass = targetClDelegate.getClass();
+            var getRawClassByteArrayMethod = delegateClass.getDeclaredMethod("getRawClassByteArray", String.class, boolean.class);
+            GET_RAW_CLASS_BYTE_ARRAY = MethodHandles.privateLookupIn(getRawClassByteArrayMethod.getDeclaringClass(), MethodHandles.lookup()).unreflect(getRawClassByteArrayMethod).bindTo(targetClDelegate);
+        } catch (NoSuchFieldException | NoSuchMethodException | IllegalAccessException e) {
+            throw new UnrecoverableMassASMRuntimeError("Failed to fetch methods from knot class laoder", e);
+        }
+    }
 
     private final Map<String, byte[]> additionalTransformedClasses = new HashMap<>();
 
@@ -105,19 +121,9 @@ public class MassASMTransformer extends GameTransformer {
 
     private byte[] getClassBytesFromClassLoader(String className) {
         try {
-            String resourceName = className.replace('.', '/') + ".class";
-            try (InputStream is = getClass().getClassLoader().getResourceAsStream(resourceName)) {
-                if (is == null) return null;
-                ByteArrayOutputStream baos = new ByteArrayOutputStream();
-                byte[] buffer = new byte[4096];
-                int bytesRead;
-                while ((bytesRead = is.read(buffer)) != -1) {
-                    baos.write(buffer, 0, bytesRead);
-                }
-                return baos.toByteArray();
-            }
-        } catch (IOException e) {
-            return null;
+            return (byte[])GET_RAW_CLASS_BYTE_ARRAY.invokeExact(className, false);
+        } catch (Throwable e) {
+            throw new RuntimeException(e);
         }
     }
 
